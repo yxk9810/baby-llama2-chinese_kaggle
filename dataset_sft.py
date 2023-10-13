@@ -7,12 +7,33 @@ import torch
 from sklearn.model_selection import train_test_split
 from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
 class SFTDataset(Dataset):
-    def __init__(self,df,tokenizer
+    def __init__(self,sft_data_path,
+                 tokenizer
                  ,max_length=256
                  ,prompt_max_len=128
                  ,answer_max_len=128):
         super().__init__()
-        self.df=df
+
+        if sft_data_path.endswith('csv'):
+            self.df=pd.read_csv(sft_data_path)
+        else:
+            self.df=pd.read_csv(sft_data_path)
+
+        # input=[]
+        # target=[]
+        # with open('../track1/train_valid.json','r') as f:
+        #     data=json.load(f)
+        # #
+        # for l in data:
+        #     input.append(l['question'])
+        #     target.append(l['answer'])
+        # df = pd.DataFrame()
+        # df['prompt']=input
+        # df['answer']=target
+        # df=pd.concat((df_sft,df[100:])).reset_index(drop=True)
+        self.df=self.df.sample(frac=1.0)
+        print(self.df)
+
         self.max_length = max_length
         self.prompt_max_len = prompt_max_len
         self.answer_max_len = answer_max_len
@@ -27,11 +48,16 @@ class SFTDataset(Dataset):
     def __getitem__(self, index: int):
         #
         sample = self.df.iloc[index]
+
+        if sample.shape[0]!=2:
+            import pdb; pdb.set_trace()
+            print('data error.')
+
         prompt = self.tokenizer.encode(sample['prompt'],add_special_tokens=False)
         answer = self.tokenizer.encode(sample['answer'],add_special_tokens=False)
-        if len(prompt) > self.prompt_max_len:
+        if len(prompt) > self.prompt_max_len-1:
             prompt = prompt[:self.prompt_max_len-2]
-        if len(answer) > self.answer_max_len:
+        if len(answer) > self.answer_max_len-1:
             answer = answer[:self.answer_max_len-2]
         #
         input_id=prompt+[self.bos]+answer+[self.eos]
@@ -45,12 +71,17 @@ class SFTDataset(Dataset):
             loss_mask = [0]*context_length+[1]*(len(input_id[mask_position+1:-pad_len])) + [0]*pad_len
         #
         input_id=np.array(input_id)
+        if input_id.shape[0]!=256:
+            import pdb; pdb.set_trace()
+            print('data error.')
+
         X=np.array(input_id[:-1]).astype(np.int64)
         Y=np.array(input_id[1:]).astype(np.int64)
         loss_mask=np.array(loss_mask[:-1])
         #
         return torch.from_numpy(X),torch.from_numpy(Y),torch.from_numpy(loss_mask)
 #
+
 if __name__=="__main__":
     df=pd.read_csv('./data/sft_data.csv')
     tokenizer=ChatGLMTokenizer(vocab_file='./chatglm_tokenizer/tokenizer.model')

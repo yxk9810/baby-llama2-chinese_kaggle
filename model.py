@@ -263,11 +263,26 @@ class Transformer(nn.Module):
 
         return logits
 
+    def print_params(self):
+        param_dict = {pn: p for pn, p in self.tok_embeddings.named_parameters()}
+        decay_params1 = [p for n, p in param_dict.items() if p.dim() >= 2]
+        num_decay_params1 = sum(p.numel() for p in decay_params1)
+        print(f"[tok_embeddings]: num decayed parameter tensors: {len(decay_params1)}, with {num_decay_params1:,} parameters")
+
+        param_dict = {pn: p for pn, p in self.layers[0].named_parameters()}
+        decay_params2 = [p for n, p in param_dict.items() if p.dim() >= 2]
+        num_decay_params2 = sum(p.numel() for p in decay_params2)
+        print(f"[layers]: num decayed parameter tensors: {len(decay_params2)}*{len(self.layers)}, with {num_decay_params2:,}*{len(self.layers)} parameters")
+
+        return len(decay_params1), num_decay_params1, len(decay_params2)*len(self.layers), num_decay_params2*len(self.layers)
+
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+        tensor_n1, params2, tensor_n2, params2 = self.print_params()
+
         # start with all of the candidate parameters
         param_dict = {pn: p for pn, p in self.named_parameters()}
         # filter out those that do not require grad
-        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+        # param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
         # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
         # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
         decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
@@ -278,14 +293,14 @@ class Transformer(nn.Module):
         ]
         num_decay_params = sum(p.numel() for p in decay_params)
         num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
+        print(f"num decayed parameter tensors: {tensor_n1}+{tensor_n2}={len(decay_params)}, with {params2}+{params2}={num_decay_params:,} parameters")
         print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
         # Create AdamW optimizer and use the fused version if it is available
         fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
         use_fused = fused_available and device_type == 'cuda'
         extra_args = dict(fused=True) if use_fused else dict()
         optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
-        print(f"using fused AdamW: {use_fused}")
+        print(f"\nusing fused AdamW: {use_fused} \n")
 
         return optimizer
 

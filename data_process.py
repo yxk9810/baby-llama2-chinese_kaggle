@@ -20,10 +20,11 @@ def process_wiki_clean():
         f.write(arr.tobytes())
 
 def process_medical(data_path,name):
-    f=open(data_path,'r',encoding='utf-8')
+    with open(data_path,'r',encoding='utf-8') as f:
+        data=json.load(f)
+
     doc_ids=[]
-    while True:
-        line=f.readline()
+    for line in tqdm(data):
         if not line:
             break
         line=json.loads(line)
@@ -52,29 +53,9 @@ def sft_to_pretrain():
         if len(text_id)>5:
             doc_ids+=text_id
     '''
-
+    print('sft_to_pretrain: train_en_1')
     with open('./data/train_en_1.json','r',encoding='utf-8') as f:
-        for row in f:
-            line=json.loads(row)
-            q=line['input']
-            a=line['output']
-            q_id=tokenizer.encode(q,add_special_tokens=False)
-            a_id=tokenizer.encode(a,add_special_tokens=False)
-            text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
-            if len(text_id)>5:
-                doc_ids+=text_id
-    with open('./data/test_en_1.json','r',encoding='utf-8') as f:
-        for row in f:
-            line=json.loads(row)
-            q=line['input']
-            a=line['output']
-            q_id=tokenizer.encode(q,add_special_tokens=False)
-            a_id=tokenizer.encode(a,add_special_tokens=False)
-            text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
-            if len(text_id)>5:
-                doc_ids+=text_id
-    with open('./data/valid_en_1.json','r',encoding='utf-8') as f:
-        for row in f:
+        for row in tqdm(f):
             line=json.loads(row)
             q=line['input']
             a=line['output']
@@ -84,8 +65,33 @@ def sft_to_pretrain():
             if len(text_id)>5:
                 doc_ids+=text_id
 
+    print('sft_to_pretrain: test_en_1')
+    with open('./data/test_en_1.json','r',encoding='utf-8') as f:
+        for row in tqdm(f):
+            line=json.loads(row)
+            q=line['input']
+            a=line['output']
+            q_id=tokenizer.encode(q,add_special_tokens=False)
+            a_id=tokenizer.encode(a,add_special_tokens=False)
+            text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
+            if len(text_id)>5:
+                doc_ids+=text_id
+
+    print('sft_to_pretrain: valid_en_1')
+    with open('./data/valid_en_1.json','r',encoding='utf-8') as f:
+        for row in tqdm(f):
+            line=json.loads(row)
+            q=line['input']
+            a=line['output']
+            q_id=tokenizer.encode(q,add_special_tokens=False)
+            a_id=tokenizer.encode(a,add_special_tokens=False)
+            text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
+            if len(text_id)>5:
+                doc_ids+=text_id
+
+    print('sft_to_pretrain: train_zh_0')
     with open('./data/train_zh_0.json','r',encoding='utf-8') as f:
-        for row in f:
+        for row in tqdm(f):
             line=json.loads(row)
             q=line['instruction']+line['input']
             a=line['output']
@@ -94,8 +100,10 @@ def sft_to_pretrain():
             text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
             if len(text_id)>5:
                 doc_ids+=text_id
+    
+    print('sft_to_pretrain: test_zh_0')
     with open('./data/test_zh_0.json','r',encoding='utf-8') as f:
-        for row in f:
+        for row in tqdm(f):
             line=json.loads(row)
             q=line['instruction']+line['input']
             a=line['output']
@@ -104,8 +112,10 @@ def sft_to_pretrain():
             text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
             if len(text_id)>5:
                 doc_ids+=text_id
+
+    print('sft_to_pretrain: valid_zh_0')
     with open('./data/valid_zh_0.json','r',encoding='utf-8') as f:
-        for row in f:
+        for row in tqdm(f):
             line=json.loads(row)
             q=line['instruction']+line['input']
             a=line['output']
@@ -123,10 +133,10 @@ def sft_to_pretrain():
 def sft_process():
     with open('./data/alpaca_gpt4_data_zh.json','r',encoding='utf-8') as f:
         data=json.load(f)
-    #
+
     q_lst=[]
     a_lst=[]
-    for per in data:
+    for per in tqdm(data):
         q=per['instruction']
         i=per['input']
         a=per['output']
@@ -145,8 +155,8 @@ def sft_process():
     #     q_lst.append(l['question'])
     #     a_lst.append(l['answer'])
     #
+
     f = open('./data/Belle_open_source_1M.json','r',encoding='utf-8')
-    
     #s
     while True:
         line = f.readline()
@@ -196,6 +206,7 @@ def process_baidu():
         if len(text_id)>5:
             doc_ids+=text_id
         cnt+=1
+        print(f'read 563w_baidubaike lines: {cnt}')
         if cnt%BATCH_SIZE==0:
             batch_cnt+=1
             arr = np.array(doc_ids,dtype=np.uint16)
@@ -216,12 +227,18 @@ def process_baidu():
     
 if __name__=="__main__":
     tokenizer=ChatGLMTokenizer(vocab_file='./chatglm_tokenizer/tokenizer.model')
-    # process_wiki_clean()
-    # process_medical('./data/medical_book_zh.json','book')
-    # process_medical('./data/train_encyclopedia.json','encyclopedia')
-    # sft_to_pretrain()
-    # sft_process()
-    #process_baidu()
+    print('process_wiki_clean.')
+    process_wiki_clean()
+    print('process_medical: medical_book_zh')
+    process_medical('./data/medical_book_zh.json','book')
+    print('process_medical: train_encyclopedia')
+    process_medical('./data/train_encyclopedia.json','encyclopedia')
+    print('sft_to_pretrain.')
+    sft_to_pretrain()
+    print('sft_process.')
+    sft_process()
+    print('process_baidu.')
+    process_baidu()
     data_path_list=[
         './data/baidubaike_563w_1.bin',
         './data/baidubaike_563w_2.bin',
@@ -233,8 +250,11 @@ if __name__=="__main__":
         './data/wiki.bin',
         './data/medical_qa.bin'
     ]
+    print('concat pretrain_data.')
+
     data_lst=[]
     for data_path in data_path_list:
+        print(f'read data: {data_path}')
         with open(data_path,'rb') as f:
             data=np.fromfile(f,dtype=np.uint16)
             data_lst.append(data)

@@ -1,0 +1,56 @@
+save_path: "20230815_baike"
+
+dataset_params:
+  max_seq_len: 256
+  train_data_path: [
+        './data/pretrain_data.bin'
+        #'./data/baidubaike_563w.bin',
+        #'./data/medical_book.bin',
+        # './data/medical_encyclopedia.bin',
+        # './data/medical_qa.bin',
+        # './data/wiki.bin'
+    ]
+  sft_data_path: './data/sft_data.csv'
+  eval_data_path: './data/valid_zh_0.json'
+
+
+model_params:
+  dim: 512
+  n_layers: 8
+  n_heads: 8
+  bias: False
+  dtype: 'float16'
+  vocab_size: 64793
+  vocab_file: './chatglm_tokenizer/tokenizer.model'
+  
+
+train_params:
+  max_epoch: 5
+  eval_interval: 1
+  log_interval: 200
+  eval_iters: 200
+  eval_only: False
+  always_save_checkpoint: True
+  init_from: 'scratch'
+  gradient_accumulation_steps: 2
+  batch_size: 32
+  multiple_of: 32
+  dropout: 0.0
+  learning_rate: 0.0003
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+  decay_lr: True
+  warmup_iters: 1000
+  lr_decay_iters: 80000
+  min_lr: 0.00001
+  backend: 'nccl'
+  device: 'cuda'
+  compile: False
+
+eval_params:
+  max_new_tokens: 100
+  temperature: 1.0
+  top_k: 30
+  seed: 1337

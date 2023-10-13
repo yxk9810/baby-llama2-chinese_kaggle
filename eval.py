@@ -17,46 +17,37 @@ def compute_bleu(labels, preds, weights=None):
                                   smoothing_function=SmoothingFunction().method1,
                                   weights=weights) for label, pred in zip(labels, preds)])
 # -----------------------------------------------------------------------------
-out_dir = 'out' # ignored if init_from is not 'resume'
-start = "" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
-num_samples = 1 # number of samples to draw
-max_new_tokens = 100 # number of tokens generated in each sample
-temperature = 1.0 # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
-top_k = 30 # retain only the top_k most likely tokens, clamp others to have 0 probability
-seed = 1337
-device = 'cuda' if torch.cuda.is_available() else 'cpu' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc.
+from setting import parser_args
+opt = parser_args()
+# start = "" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 #dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32' or 'bfloat16' or 'float16'
-dtype = "float32"
-compile = False # use PyTorch 2.0 to compile the model to be faster
 #exec(open('configurator.py').read()) # overrides from command line or config file
 # -----------------------------------------------------------------------------
-max_seq_len = 256
-dim = 512
-n_layers = 8
-n_heads = 8
-multiple_of = 32
-dropout = 0.0 
-model_args = dict(
-        dim=dim,
-        n_layers=n_layers,
-        n_heads=n_heads,
-        n_kv_heads=n_heads,
-        vocab_size=64793,#64793,
-        multiple_of=multiple_of,
-        max_seq_len=max_seq_len,
-        dropout=dropout,
-    )  # s
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
+
+
+torch.manual_seed(opt.seed)
+torch.cuda.manual_seed(opt.seed)
 torch.backends.cuda.matmul.allow_tf32 = True # allow tf32 on matmul
 torch.backends.cudnn.allow_tf32 = True # allow tf32 on cudnn
-device_type = 'cuda' if 'cuda' in device else 'cpu' # for later use in torch.autocast
-ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
+device_type = 'cuda' if 'cuda' in opt.device else 'cpu' # for later use in torch.autocast
+ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[opt.dtype]
 ctx = nullcontext() if device_type == 'cpu' else torch.cuda.amp.autocast()
 
 # init from a model saved in a specific directory
-ckpt_path = 'out/20230808_sft/epoch_4.pth'
-state_dict = torch.load(ckpt_path, map_location=device)
+ckpt_path = f'./out/{opt.save_path}_sft_bell/epoch_{1}.pth'
+state_dict = torch.load(ckpt_path, map_location=opt.device)
+
+model_args = dict(
+        dim=opt.dim,
+        n_layers=opt.n_layers,
+        n_heads=opt.n_heads,
+        n_kv_heads=opt.n_heads,
+        vocab_size=opt.vocab_size,#64793,
+        multiple_of=opt.multiple_of,
+        max_seq_len=opt.max_seq_len,
+        dropout=opt.dropout,
+    )  # 
+
 gptconf = ModelArgs(**model_args)
 model = Transformer(gptconf)
 unwanted_prefix = '_orig_mod.'
@@ -66,38 +57,45 @@ for k,v in list(state_dict.items()):
 model.load_state_dict(state_dict, strict=False)
 
 model.eval()
-model.to(device)
-if compile:
+model.to(opt.device)
+if opt.compile:
     print("Compiling the model...")
     model = torch.compile(model) # requires PyTorch 2.0 (optional)
 
 # load the tokenizer
-tokenizer=ChatGLMTokenizer(vocab_file='./chatglm_tokenizer/tokenizer.model')
+tokenizer=ChatGLMTokenizer(vocab_file=opt.vocab_file)
 #
-with open('../track1/train_valid.json','r') as f:
-    data=json.load(f)
-ans_lst=[]
-target_lst=[]
-for p in data[:100]:
-    # run generation
-    prompt=p['question']
-    x=tokenizer.encode(prompt,add_special_tokens=False)+[tokenizer.special_tokens['<eos>']]
-    x = (torch.tensor(x, dtype=torch.long, device=device)[None, ...])
-    target=p['answer']
-    target_lst.append(target)
-    with torch.no_grad():
-        with ctx:
-            y = model.generate(x, 2, max_new_tokens, temperature=temperature, top_k=top_k)
-            #
-            answer=tokenizer.decode(y[0].tolist())
-            answer=answer.replace(prompt,'')
-            ans_lst.append(answer)
-            print('[prompt]:',prompt)
-            print('[answer]:',answer)
-            print('---------------')
+answer_list=[]
+predict_lst=[]
+with open(opt.eval_data_path,'r',encoding='utf-8') as f:
+    from tqdm import tqdm
+    line_num=0
+    for row in f:
+        line=json.loads(row)
+        if line_num>100:
+            break
+
+        line_num+=1
+        # run generation
+        prompt=line['instruction']#+line['input']
+        x=tokenizer.encode(prompt,add_special_tokens=False)+[tokenizer.special_tokens['<eos>']]
+        x = (torch.tensor(x, dtype=torch.long, device=opt.device)[None, ...])
+        answer=line['output']
+        answer_list.append(answer)
+        with torch.no_grad():
+            with ctx:
+                y = model.generate(x, 2, opt.max_new_tokens, temperature=opt.temperature, top_k=opt.top_k)
+                #
+                predict=tokenizer.decode(y[0].tolist())
+                predict=predict.replace(prompt,'')
+                predict_lst.append(predict)
+                print('\n---------------')
+                print('[prompt]:',prompt)
+                print('[answer]:',answer)
+                print('[predict]:',predict)
 #
 import jieba
-target_lst=[jieba.lcut(result.lower()) for result in target_lst]
-preds_lst=[jieba.lcut(result.lower()) for result in ans_lst]
+target_lst=[jieba.lcut(result.lower()) for result in answer_list]
+preds_lst=[jieba.lcut(result.lower()) for result in predict_lst]
 scores = compute_bleu(preds_lst, target_lst)
 print(scores)
