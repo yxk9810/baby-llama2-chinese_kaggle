@@ -1,5 +1,5 @@
 ## baby-llama2-chinese-fix
-参考https://github.com/DLLXW/baby-llama2-chinese， 用于从头预训练+SFT一个小参数量的中文LLaMa2的仓库；24G单卡即可运行得到一个流畅中文问答的chat-llama2.
+参考https://github.com/DLLXW/baby-llama2-chinese , 用于从头预训练+SFT一个小参数量的中文LLaMa2的仓库；24G单卡即可运行得到一个流畅中文问答的chat-llama2.
 
 >20231013更新，fork代码
 
@@ -43,10 +43,10 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node
 CUDA_VISIBLE_DEVICES=0 python pretrain.py
 
 # SFT
- CUDA_VISIBLE_DEVICES=3 python sft.py
+CUDA_VISIBLE_DEVICES=3 python sft.py
 
 # eval
- CUDA_VISIBLE_DEVICES=3 python eval.py
+CUDA_VISIBLE_DEVICES=3 python eval.py
 ```
 
 
