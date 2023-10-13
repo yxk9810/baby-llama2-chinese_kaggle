@@ -37,17 +37,15 @@ python data_process.py
 因为用到了torch的分布式训练，我们需要在运行的时候设置环境变量。使用python -m torch.distributed.launch --use_env pretrain.py，或直接使用torchrun替代python命令。
 
 ```python
-#预训练
+# 预训练——多卡
 CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4 --use_env pretrain.py
 # 单卡
 CUDA_VISIBLE_DEVICES=0 python pretrain.py
-```
 
-#SFT
+# SFT
  CUDA_VISIBLE_DEVICES=3 python sft.py
-```
 
-#SFT
+# eval
  CUDA_VISIBLE_DEVICES=3 python eval.py
 ```
 
