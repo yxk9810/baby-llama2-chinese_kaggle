@@ -75,7 +75,7 @@ class CEval:
         self.tokenizer = tokenizer
         self.opt = opt
 
-    def run(self, data_path, shot: int, logger):
+    def run(self, data_path, shot: int):
         results, accs = {}, {}
 
         dir_name = os.path.splitext(self.opt.save_path)[0]+'_Ceval'
@@ -104,7 +104,6 @@ class CEval:
             json.dump(accs, f, indent=2)
         print(f"Ceval average acc: {average_acc}\n")
 
-        logger.info(f'model: {self.opt.save_path}. Ceval_eval_scores: {average_acc}')
         return average_acc
 
     def run_single_task(self, data_path, task_name: str, shot: int):

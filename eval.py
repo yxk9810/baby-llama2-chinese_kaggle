@@ -23,72 +23,87 @@ def compute_bleu(labels, preds, weights=None):
 def eval_medical(model,tokenizer,ctx,logger):
     answer_list=[]
     predict_lst=[]
-    print(f'*************medical eval: {model_path_}*************')
-    with open(opt.eval_data_path,'r',encoding='utf-8') as f:
-        from tqdm import tqdm
-        line_num=0
-        for row in tqdm(f):
-            line=json.loads(row)
-            if line_num>100:
-                break
+    print(f'*************medical eval*************')
 
-            line_num+=1
-            # run generation
-            prompt=line['instruction']#+line['input']
-            x=tokenizer.encode(prompt,add_special_tokens=False)+[tokenizer.special_tokens['<eos>']]
-            x = (torch.tensor(x, dtype=torch.long, device=opt.device)[None, ...])
-            answer=line['output']
-            answer_list.append(answer)
-            with torch.no_grad():
-                with ctx:
-                    y = model.generate(x, 2, opt.max_new_tokens, temperature=opt.temperature, top_k=opt.top_k)
-                    #
-                    predict=tokenizer.decode(y[0].tolist())
-                    predict=predict.replace(prompt,'')
-                    predict_lst.append(predict)
-                    print('\n---------------')
-                    print('[prompt]:',prompt)
-                    print('[answer]:',answer)
-                    print('[predict]:',predict)
-    #
-    import jieba
-    target_lst=[jieba.lcut(result.lower()) for result in answer_list]
-    preds_lst=[jieba.lcut(result.lower()) for result in predict_lst]
-    scores = compute_bleu(preds_lst, target_lst)
-    print(f'medical_eval_scores: {scores}')
+    medical_path_list = [
+        'data/train_data/valid_zh_0.json',
+        'data/train_data/valid_en_1.json',
+    ]
 
-    logger.info(f'model: {model_path_}. medical_eval_scores: {scores}')
+    scores = dict()
+    for eval_data_path in medical_path_list:
+        with open(eval_data_path,'r',encoding='utf-8') as f:
+            from tqdm import tqdm
+            line_num=0
+            for row in tqdm(f):
+                line=json.loads(row)
+                if line_num>100:
+                    break
+
+                line_num+=1
+                # run generation
+                prompt=line['instruction']#+line['input']
+                x=tokenizer.encode(prompt,add_special_tokens=False)+[tokenizer.special_tokens['<eos>']]
+                x = (torch.tensor(x, dtype=torch.long, device=opt.device)[None, ...])
+                answer=line['output']
+                answer_list.append(answer)
+                with torch.no_grad():
+                    with ctx:
+                        y = model.generate(x, 2, opt.max_new_tokens, temperature=opt.temperature, top_k=opt.top_k)
+                        #
+                        predict=tokenizer.decode(y[0].tolist())
+                        predict=predict.replace(prompt,'')
+                        predict_lst.append(predict)
+                        # print('\n---------------')
+                        # print('[prompt]:',prompt)
+                        # print('[answer]:',answer)
+                        # print('[predict]:',predict)
+        #
+        import jieba
+        target_lst=[jieba.lcut(result.lower()) for result in answer_list]
+        preds_lst=[jieba.lcut(result.lower()) for result in predict_lst]
+        score = compute_bleu(preds_lst, target_lst)
+        print(f'{eval_data_path}: eval_scores: {score}')
+        scores[eval_data_path] = score
+
+    weighted_acc = sum(scores.values())/len(scores)
+    logger.info(f'model: {model_path_}. medical_eval_scores: {weighted_acc}')
 
 
 def eval_ceval(model, tokenizer, opt, logger):
-    print(f'*************CEval: {model_path_}*************')
+    print(f'*************CEval*************')
     from eval.ceval import CEval
     ceval = CEval(model, tokenizer, opt)
-    ceval.run('data/eval_data/ceval-exam',opt.shot,logger)
+    average_acc=ceval.run('data/eval_data/ceval-exam',opt.shot)
+    logger.info(f'model: {opt.save_path}. Ceval_eval_scores: {average_acc}')
 
 
 def eval_mmlu(model, tokenizer, opt, logger):
-    print(f'*************MMLU: {model_path_}*************')
+    print(f'*************MMLU*************')
     from eval.mmlu import mmlu_eval_func
-    mmlu_eval_func('data/eval_data/mmlu', opt, model, tokenizer, logger)
+    weighted_acc=mmlu_eval_func('data/eval_data/mmlu', opt, model, tokenizer)
+    logger.info(f'model: {opt.save_path}. MMLU_eval_scores: {weighted_acc}')
 
 
 def eval_longbench(model, tokenizer, opt, logger):
-    print(f'*************LongBench: {model_path_}*************')
+    print(f'*************LongBench*************')
     from eval.longbench import longbench_eval_func
-    longbench_eval_func('data/eval_data/longBench', opt, model, tokenizer, logger)
+    weighted_acc=longbench_eval_func('data/eval_data/longBench', opt, model, tokenizer)
+    logger.info(f'model: {opt.save_path}. LongBench_eval_scores: {weighted_acc}')
 
 
 # def eval_LongEval(model, tokenizer, opt, logger):
-#     print(f'*************LongEval: {model_path_}*************')
+#     print(f'*************LongEval*************')
 #     from eval.longeval import longeval_eval_func
-#     longeval_eval_func('data/eval_data/longbench', opt, model, tokenizer, logger)
+#     weighted_acc=longeval_eval_func('data/eval_data/longbench', opt, model, tokenizer)
+#     logger.info(f'model: {opt.save_path}. LongEval_eval_scores: {weighted_acc}')
 
 
 # def eval_GSM8K(model, tokenizer, opt, logger):
-#     print(f'*************GSM8K: {model_path_}*************')
+#     print(f'*************GSM8K*************')
 #     gsm8k = GSM8K(model, tokenizer, opt.output_dir)
-#     gsm8k.run(opt.shot, opt.split,logger)
+#     weighted_acc=gsm8k.run(opt.shot, opt.split)
+#     logger.info(f'model: {opt.save_path}. gsm8k_eval_scores: {weighted_acc}')
 
 
 def eval(model_path_,opt,logger):
@@ -162,4 +177,5 @@ if __name__=="__main__":
                 opt.config = os.path.join(model_path_, 'config.yaml')
                 opt,_ = parser_config(opt)
                 opt.save_path = os.path.join(model_path_, model_)
+                print(f'*************eval model: {model_path_}*************')
                 eval(opt.save_path,opt,logger)

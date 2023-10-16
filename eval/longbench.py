@@ -160,7 +160,7 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
     torch.cuda.manual_seed_all(seed)
 
-def longbench_eval_func(data_path, opt, model, tokenizer, logger):
+def longbench_eval_func(data_path, opt, model, tokenizer):
     seed_everything(opt.seed) # 1337/42
     
     eval_longbench_e = True
@@ -229,5 +229,5 @@ def longbench_eval_func(data_path, opt, model, tokenizer, logger):
     weighted_acc = sum(scores.values())/len(scores)
     print("LongBench Average accuracy: {:.3f}".format(weighted_acc))
 
-    logger.info(f'model: {opt.save_path}. LongBench_eval_scores: {weighted_acc}')
+    return weighted_acc
     

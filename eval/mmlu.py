@@ -100,7 +100,7 @@ def eval(opt, subject, model, tokenizer, dev_df, test_df, choices):
 
     return cors, acc, all_probs
 
-def mmlu_eval_func(data_path, opt, model, tokenizer, logger):
+def mmlu_eval_func(data_path, opt, model, tokenizer):
     from eval.categories import subcategories, categories
     subjects = sorted(
         [
@@ -159,4 +159,4 @@ def mmlu_eval_func(data_path, opt, model, tokenizer, logger):
     weighted_acc = np.mean(np.concatenate(all_cors))
     print("Average accuracy: {:.3f}".format(weighted_acc))
 
-    logger.info(f'model: {opt.save_path}. MMLU_eval_scores: {weighted_acc}')
+    return weighted_acc

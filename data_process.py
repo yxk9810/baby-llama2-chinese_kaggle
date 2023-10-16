@@ -90,17 +90,17 @@ def sft_to_pretrain():
             if len(text_id)>5:
                 doc_ids+=text_id
 
-    print('sft_to_pretrain: valid_en_1')
-    with open('./data/train_data/valid_en_1.json','r',encoding='utf-8') as f:
-        for row in tqdm(f):
-            line=json.loads(row)
-            q=line['input']
-            a=line['output']
-            q_id=tokenizer.encode(q,add_special_tokens=False)
-            a_id=tokenizer.encode(a,add_special_tokens=False)
-            text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
-            if len(text_id)>5:
-                doc_ids+=text_id
+    # print('sft_to_pretrain: valid_en_1')
+    # with open('./data/train_data/valid_en_1.json','r',encoding='utf-8') as f:
+    #     for row in tqdm(f):
+    #         line=json.loads(row)
+    #         q=line['input']
+    #         a=line['output']
+    #         q_id=tokenizer.encode(q,add_special_tokens=False)
+    #         a_id=tokenizer.encode(a,add_special_tokens=False)
+    #         text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
+    #         if len(text_id)>5:
+    #             doc_ids+=text_id
 
     print('sft_to_pretrain: train_zh_0')
     with open('./data/train_data/train_zh_0.json','r',encoding='utf-8') as f:
@@ -126,17 +126,17 @@ def sft_to_pretrain():
             if len(text_id)>5:
                 doc_ids+=text_id
 
-    print('sft_to_pretrain: valid_zh_0')
-    with open('./data/train_data/valid_zh_0.json','r',encoding='utf-8') as f:
-        for row in tqdm(f):
-            line=json.loads(row)
-            q=line['instruction']+line['input']
-            a=line['output']
-            q_id=tokenizer.encode(q,add_special_tokens=False)
-            a_id=tokenizer.encode(a,add_special_tokens=False)
-            text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
-            if len(text_id)>5:
-                doc_ids+=text_id
+    # print('sft_to_pretrain: valid_zh_0')
+    # with open('./data/train_data/valid_zh_0.json','r',encoding='utf-8') as f:
+    #     for row in tqdm(f):
+    #         line=json.loads(row)
+    #         q=line['instruction']+line['input']
+    #         a=line['output']
+    #         q_id=tokenizer.encode(q,add_special_tokens=False)
+    #         a_id=tokenizer.encode(a,add_special_tokens=False)
+    #         text_id=q_id+a_id+[tokenizer.special_tokens['<eos>']]
+    #         if len(text_id)>5:
+    #             doc_ids+=text_id
 
     arr = np.array(doc_ids,dtype=np.uint16)
     print(arr.shape)
