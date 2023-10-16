@@ -26,8 +26,8 @@ def eval_medical(model,tokenizer,ctx,logger):
     print(f'*************medical eval*************')
 
     medical_path_list = [
-        'data/train_data/valid_zh_0.json',
-        'data/train_data/valid_en_1.json',
+        'data/valid_zh_0.json',
+        'data/valid_en_1.json',
     ]
 
     scores = dict()
@@ -74,28 +74,28 @@ def eval_ceval(model, tokenizer, opt, logger):
     print(f'*************CEval*************')
     from eval.ceval import CEval
     ceval = CEval(model, tokenizer, opt)
-    average_acc=ceval.run('data/eval_data/ceval-exam',opt.shot)
+    average_acc=ceval.run('data/ceval-exam',opt.shot)
     logger.info(f'model: {opt.save_path}. Ceval_eval_scores: {average_acc}')
 
 
 def eval_mmlu(model, tokenizer, opt, logger):
     print(f'*************MMLU*************')
     from eval.mmlu import mmlu_eval_func
-    weighted_acc=mmlu_eval_func('data/eval_data/mmlu', opt, model, tokenizer)
+    weighted_acc=mmlu_eval_func('data/mmlu', opt, model, tokenizer)
     logger.info(f'model: {opt.save_path}. MMLU_eval_scores: {weighted_acc}')
 
 
 def eval_longbench(model, tokenizer, opt, logger):
     print(f'*************LongBench*************')
     from eval.longbench import longbench_eval_func
-    weighted_acc=longbench_eval_func('data/eval_data/longBench', opt, model, tokenizer)
+    weighted_acc=longbench_eval_func('data/longBench', opt, model, tokenizer)
     logger.info(f'model: {opt.save_path}. LongBench_eval_scores: {weighted_acc}')
 
 
 # def eval_LongEval(model, tokenizer, opt, logger):
 #     print(f'*************LongEval*************')
 #     from eval.longeval import longeval_eval_func
-#     weighted_acc=longeval_eval_func('data/eval_data/longbench', opt, model, tokenizer)
+#     weighted_acc=longeval_eval_func('data/longbench', opt, model, tokenizer)
 #     logger.info(f'model: {opt.save_path}. LongEval_eval_scores: {weighted_acc}')
 
 

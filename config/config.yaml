@@ -1,17 +1,16 @@
 save_path: "20230815_baike"
 
 dataset_params:
-  max_seq_len: 256
+  max_seq_len: 512
   train_data_path: [
-        './data/train_data/pretrain_data.bin'
+        './data/pretrain_data.bin'
         #'./data/baidubaike_563w.bin',
         #'./data/medical_book.bin',
         # './data/medical_encyclopedia.bin',
         # './data/medical_qa.bin',
         # './data/wiki.bin'
     ]
-  sft_data_path: './data/sft_data/sft_data.csv'
-  eval_data_path: './data/train_data/test_encyclopedia.json'
+  sft_data_path: './data/sft_data.csv'
 
 
 model_params:
