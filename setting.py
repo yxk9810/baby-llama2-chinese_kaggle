@@ -6,10 +6,12 @@ def parser_args():
     parser.add_argument("--config", type=str, default='config/config.yaml', help="path to config")
     parser.add_argument("--save_path", type=str, default='20230815_baike', help="path to config")
     parser.add_argument("--train_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
+    parser.add_argument("--valid_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
     parser.add_argument("--sft_data_path", type=str, default='./data/sft_data.csv', help="path to config")
-    parser.add_argument("--eval_data_path", type=str, default='../track1/train_valid.json', help="path to config")
     parser.add_argument("--max_seq_len", type=int, default=512)
     parser.add_argument("--out_dir", type=str, default='out', help="path to config")
+    parser.add_argument("--model_path", type=str, default='best.pth', help="path to config")
+    
     # model param
     parser.add_argument("--dim", type=int, default=512)
     parser.add_argument("--n_layers", type=int, default=8)
@@ -65,9 +67,11 @@ def parser_config(opt):
     
     opt.save_path = config['save_path']
     opt.train_data_path = config['dataset_params']['train_data_path']
+    opt.valid_data_path = config['dataset_params']['valid_data_path']
     opt.sft_data_path = config['dataset_params']['sft_data_path']
-    opt.eval_data_path = config['dataset_params']['eval_data_path']
     opt.max_seq_len = config['dataset_params']['max_seq_len']
+    
+    opt.model_path = config['model_path']
 
     opt.dim = config['model_params']['dim']
     opt.n_layers = config['model_params']['n_layers']

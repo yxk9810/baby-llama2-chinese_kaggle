@@ -13,6 +13,9 @@ from share import get_lr,get_logger,init_model,init_ddp
 # torchrun --standalone --nproc_per_node=4 pretrain.py OR python -m torch.distributed.launch --nproc_per_node=4 pretrain.py
 def pretrain_epoch(epoch, opt):
     start_time=time.time()
+    if train_sampler is not None:
+        train_sampler.set_epoch(epoch)
+
     for step, (X, Y) in enumerate(train_loader):
         X=X.to(opt.device)
         Y=Y.to(opt.device)
@@ -38,6 +41,8 @@ def pretrain_epoch(epoch, opt):
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
+        tr_loss = loss.item() * opt.gradient_accumulation_steps
+        
         #
         if((step+1) % opt.gradient_accumulation_steps)==0:
             # clip the gradient
@@ -63,30 +68,28 @@ def pretrain_epoch(epoch, opt):
                         opt.max_epoch, 
                         step, 
                         iter_per_epoch,
-                        loss.item(), 
+                        tr_loss, 
                         optimizer.param_groups[-1]['lr'],
                         spend_time / (step+1) * iter_per_epoch // 60 - spend_time // 60))
+        
 
 @torch.no_grad()
-def valid_epoch(epoch):
-    global best_val_loss
+def valid_epoch(opt):
     losses = []
     model.eval()
-    for _, (X, Y) in enumerate(val_loader):
-        X=X.to(device)
-        Y=Y.to(device)
-        with ctx:
-            logits, loss = model(X, Y)
-        losses.append(loss.item())
+    for epoch in range(opt.max_epoch):
+        for _, (X, Y) in enumerate(val_loader):
+            X=X.to(opt.device)
+            Y=Y.to(opt.device)
+            with ctx:
+                logits = model(X, Y)
+                loss = raw_model.last_loss
+            losses.append(loss.item())
     model.train()
     val_loss=np.mean(losses)
     #
     logger.info('valid loss = {:.4f}'.format(val_loss))
-    if val_loss < best_val_loss:
-        best_val_loss = val_loss
-        logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
-        torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
-    #
+
     return val_loss
 
 # I/O
@@ -106,7 +109,7 @@ if __name__=="__main__":
     # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
     # -----------------------------------------------------------------------------
 
-    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain_accum{opt.gradient_accumulation_steps}')
+    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain_bs{opt.batch_size}_accum{opt.gradient_accumulation_steps}')
     if not os.path.exists(save_dir): os.makedirs(save_dir)
 
     # 保存一份参数
@@ -114,7 +117,10 @@ if __name__=="__main__":
         import yaml
         file.write(yaml.dump(config))
 
-    logger = get_logger(os.path.join(save_dir,'log.log'))
+    log_dir = os.path.join(save_dir,'log.log')
+    if os.path.exists(log_dir):
+        os.remove(log_dir) 
+    logger = get_logger(log_dir)
     # various inits, derived attributes, I/O setup
    # various inits, derived attributes, I/O setup
     ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
@@ -156,12 +162,9 @@ if __name__=="__main__":
 
     print(f"====================prepear dataset====================")
 
-    best_val_loss = 1e9
-    #
     #-----init dataloader------
-    data_path_list=opt.train_data_path
-    train_ds = PretrainDataset(data_path_list, max_length=opt.max_seq_len,memmap=True)
-    # val_ds = PretrainDataset(data_path_list, max_seq_len=256)
+    train_ds = PretrainDataset(opt.train_data_path, max_length=opt.max_seq_len,memmap=True)
+    val_ds = PretrainDataset(opt.valid_data_path, max_length=opt.max_seq_len)
     if ddp:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_ds)
     else:
@@ -176,14 +179,14 @@ if __name__=="__main__":
         num_workers=0 if os.name == 'nt' else 4,
         sampler=train_sampler
     )
-    # val_loader = torch.utils.data.DataLoader(
-    #     val_ds,
-    #     batch_size=batch_size,
-    #     pin_memory=False,
-    #     drop_last=False,
-    #     shuffle=False,        
-    #     num_workers=0,
-    # )
+    val_loader = torch.utils.data.DataLoader(
+        val_ds,
+        batch_size=opt.batch_size,
+        pin_memory=False,
+        drop_last=False,
+        shuffle=False,        
+        num_workers=0,
+    )
 
     print(f"====================pretrain_epoch====================")
 
@@ -191,11 +194,24 @@ if __name__=="__main__":
     warmup_epoch=1
     
     # training loop
+    best_val_loss = 1e9
     for epoch in range(opt.max_epoch):
         pretrain_epoch(epoch,opt)
-        #val_loss=valid_epoch(epoch)
-        if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
-            #
+        val_loss=valid_epoch(opt)
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
+            if ddp:
+                if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
+                    torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
+            else:
+                torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
+
+        if ddp:
+            if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
+                torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
+        else:
             torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
     if ddp:
         destroy_process_group()

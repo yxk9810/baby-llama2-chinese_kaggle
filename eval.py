@@ -62,7 +62,7 @@ def eval_medical(model,tokenizer,ctx,logger):
         import jieba
         target_lst=[jieba.lcut(result.lower()) for result in answer_list]
         preds_lst=[jieba.lcut(result.lower()) for result in predict_lst]
-        score = compute_bleu(preds_lst, target_lst)
+        score = compute_bleu(preds_lst, target_lst)*100
         print(f'{eval_data_path}: eval_scores: {score}')
         scores[eval_data_path] = score
 
@@ -74,14 +74,14 @@ def eval_ceval(model, tokenizer, opt, logger):
     print(f'*************CEval*************')
     from eval.ceval import CEval
     ceval = CEval(model, tokenizer, opt)
-    average_acc=ceval.run('data/ceval-exam',opt.shot)
+    average_acc=ceval.run('data/ceval-exam',opt.shot)*100
     logger.info(f'model: {opt.save_path}. Ceval_eval_scores: {average_acc}')
 
 
 def eval_mmlu(model, tokenizer, opt, logger):
     print(f'*************MMLU*************')
     from eval.mmlu import mmlu_eval_func
-    weighted_acc=mmlu_eval_func('data/mmlu', opt, model, tokenizer)
+    weighted_acc=mmlu_eval_func('data/mmlu', opt, model, tokenizer)*100
     logger.info(f'model: {opt.save_path}. MMLU_eval_scores: {weighted_acc}')
 
 
@@ -150,7 +150,7 @@ def eval(model_path_,opt,logger):
     eval_medical(model, tokenizer, ctx, logger)
     eval_ceval(model, tokenizer, opt, logger)
     eval_mmlu(model, tokenizer, opt, logger)
-    eval_longbench(model, tokenizer, opt, logger)
+    # eval_longbench(model, tokenizer, opt, logger)
     # eval_LongEval(model, tokenizer, opt, logger)
     # eval_GSM8K(model, tokenizer, opt, logger)
 
@@ -165,17 +165,18 @@ if __name__=="__main__":
     #exec(open('configurator.py').read()) # overrides from command line or config file
     # -----------------------------------------------------------------------------
     from share import get_logger
-    logger = get_logger(os.path.join(opt.out_dir,'eval_all.log'))
+    log_dir = os.path.join(opt.out_dir,'eval_all.log')
+    if os.path.exists(log_dir):
+        os.remove(log_dir) 
+    logger = get_logger(log_dir)
 
     model_path_list = os.listdir(opt.out_dir)
     for model_path in model_path_list:
         model_path_ = os.path.join(opt.out_dir, model_path)
 
-        model_list = os.listdir(model_path_)
-        for model_ in model_list:
-            if model_.endswith('pth'):
-                opt.config = os.path.join(model_path_, 'config.yaml')
-                opt,_ = parser_config(opt)
-                opt.save_path = os.path.join(model_path_, model_)
-                print(f'*************eval model: {model_path_}*************')
-                eval(opt.save_path,opt,logger)
+        if os.path.isdir(model_path_):
+            opt.config = os.path.join(model_path_, 'config.yaml')
+            opt,_ = parser_config(opt)
+            opt.save_path = os.path.join(model_path_, 'best.pth')
+            print(f'*************eval model: {model_path_}*************')
+            eval(opt.save_path,opt,logger)

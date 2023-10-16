@@ -7,6 +7,7 @@ from torch.distributed import destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import pandas as pd
 from dataset_sft import SFTDataset
+from dataset import PretrainDataset
 import torch.nn.functional as F
 from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
 from share import get_lr, get_logger, init_model, init_ddp
@@ -65,10 +66,29 @@ def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
                         optimizer.param_groups[-1]['lr'],
                         spend_time / (step+1) * iter_per_epoch // 60 - spend_time // 60))
 
+@torch.no_grad()
+def valid_epoch(opt, model, raw_model, val_loader,ctx, logger):
+    losses = []
+    model.eval()
+    for epoch in range(opt.max_epoch):
+        for _, (X, Y) in enumerate(val_loader):
+            X=X.to(opt.device)
+            Y=Y.to(opt.device)
+            with ctx:
+                logits = model(X, Y)
+                loss = raw_model.last_loss
+            losses.append(loss.item())
+    model.train()
+    val_loss=np.mean(losses)
+    #
+    logger.info('valid loss = {:.4f}'.format(val_loss))
+
+    return val_loss
+
+
 def sft_model(model_path, opt):
     opt.config = os.path.join(model_path, 'config.yaml')
     opt,config = parser_config(opt)
-
 
     save_dir =model_path.replace('pretrain', 'sft_bell')
     if not os.path.exists(save_dir): os.makedirs(save_dir)
@@ -78,7 +98,10 @@ def sft_model(model_path, opt):
         import yaml
         file.write(yaml.dump(config))
 
-    logger = get_logger(os.path.join(save_dir,'log.log'))
+    log_dir = os.path.join(save_dir,'log.log')
+    if os.path.exists(log_dir):
+        os.remove(log_dir) 
+    logger = get_logger(log_dir)
     # various inits, derived attributes, I/O setup
    # various inits, derived attributes, I/O setup
     ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
@@ -88,16 +111,13 @@ def sft_model(model_path, opt):
     if master_process:
         os.makedirs(opt.out_dir, exist_ok=True)
 
-    #
-    best_val_loss = 1e9
-    
+    opt.model_path = os.path.join(model_path, f'best.pth')
+    print(f'**************model_path: {opt.model_path}**************')
 
     #init model
     model=init_model(opt)
-    for idx in range(opt.max_epoch):
-        if os.path.exists(os.path.join(model_path, f'epoch_{opt.max_epoch-1-idx}.pth')):
-            model.load_state_dict(torch.load(os.path.join(model_path, f'epoch_{opt.max_epoch-1-idx}.pth')))
-            break
+    ckpt = torch.load(opt.model_path)
+    model.load_state_dict(ckpt)
     model.to(opt.device)
     # initialize a GradScaler. If enabled=False scaler is a no-op
     scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
@@ -135,25 +155,31 @@ def sft_model(model_path, opt):
         shuffle=False,        
         num_workers=0,
     )
-    # val_ds = PretrainDataset(data_path_list, max_seq_len=256)
-    # val_loader = torch.utils.data.DataLoader(
-    #     val_ds,
-    #     batch_size=batch_size,
-    #     pin_memory=False,
-    #     drop_last=False,
-    #     shuffle=False,        
-    #     num_workers=0,
-    # )
+    val_ds = PretrainDataset(opt.valid_data_path, max_length=256)
+    val_loader = torch.utils.data.DataLoader(
+        val_ds,
+        batch_size=opt.batch_size,
+        pin_memory=False,
+        drop_last=False,
+        shuffle=False,        
+        num_workers=0,
+    )
 
     print(f"====================sft_epoch====================")
 
     warmup_epoch=1
 
     # training loop
+    best_val_loss = 1e9
     for epoch in range(opt.max_epoch):
         sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger)
-        #val_loss=valid_epoch(epoch)
         torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
+
+        val_loss=valid_epoch(opt, model, raw_model, val_loader,ctx, logger)
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
+            torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
     if ddp:
         destroy_process_group()
 
@@ -167,5 +193,4 @@ if __name__=="__main__":
     for pretrain_model in pretrain_list:
         model_path = os.path.join(opt.out_dir, pretrain_model)
         if 'pretrain' in model_path:
-            print(f'**************model_path: {model_path}**************')
             sft_model(model_path, opt)

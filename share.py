@@ -65,9 +65,9 @@ def init_model(opt):
         gptconf = ModelArgs(**model_args)
         model = Transformer(gptconf)
     elif opt.init_from == "resume":
-        print(f"Resuming training from {opt.out_dir}")
+        print(f"Resuming training from {opt.model_path}")
         # resume training from a checkpoint.
-        ckpt_path = os.path.join(opt.out_dir, "ckpt.pt")
+        ckpt_path = os.path.join(opt.model_path, "best.pth")
         checkpoint = torch.load(ckpt_path, map_location=opt.device)
         checkpoint_model_args = checkpoint["model_args"]
         # force these config attributes to be equal otherwise we can't even resume training
