@@ -3,15 +3,15 @@ save_path: "20230815_baike"
 dataset_params:
   max_seq_len: 256
   train_data_path: [
-        './data/pretrain_data.bin'
+        './data/train_data/pretrain_data.bin'
         #'./data/baidubaike_563w.bin',
         #'./data/medical_book.bin',
         # './data/medical_encyclopedia.bin',
         # './data/medical_qa.bin',
         # './data/wiki.bin'
     ]
-  sft_data_path: './data/sft_data.csv'
-  eval_data_path: './data/valid_zh_0.json'
+  sft_data_path: './data/sft_data/sft_data.csv'
+  eval_data_path: './data/train_data/test_encyclopedia.json'
 
 
 model_params:
@@ -25,14 +25,14 @@ model_params:
   
 
 train_params:
-  max_epoch: 5
+  max_epoch: 4
   eval_interval: 1
   log_interval: 200
   eval_iters: 200
   eval_only: False
   always_save_checkpoint: True
   init_from: 'scratch'
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 16
   batch_size: 32
   multiple_of: 32
   dropout: 0.0
@@ -54,3 +54,4 @@ eval_params:
   temperature: 1.0
   top_k: 30
   seed: 1337
+  shot: 0

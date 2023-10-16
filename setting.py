@@ -51,10 +51,15 @@ def parser_args():
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_k", type=int, default=30)
     parser.add_argument("--seed", type=int, default=1337)
+    parser.add_argument("--shot", type=int, default=0, help='zero shot')
+
+    parser.add_argument("--use_tensorboard", type=bool, default=True)
 
     opt = parser.parse_args()
-    
 
+    return opt
+
+def parser_config(opt):
     with open(opt.config) as f:
         config = yaml.load(f, Loader=yaml.Loader)
     
@@ -100,6 +105,6 @@ def parser_args():
     opt.temperature = config['eval_params']['temperature']
     opt.top_k = config['eval_params']['top_k']
     opt.seed = config['eval_params']['seed']
+    opt.shot = config['eval_params']['shot']
 
-
-    return opt
+    return opt,config

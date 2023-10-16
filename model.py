@@ -172,7 +172,12 @@ class FeedForward(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        return self.dropout(self.w2(F.silu(self.w1(x)) * self.w3(x)))
+        y=self.w1(x)
+        y=F.silu(y)
+        z=self.w3(x)
+        w=self.w2(y*z)
+        x=self.dropout(w)
+        return x
 
 
 class TransformerBlock(nn.Module):
@@ -219,7 +224,8 @@ class Transformer(nn.Module):
         self.tok_embeddings.weight = self.output.weight # https://paperswithcode.com/method/weight-tying
 
         # some useful precompute for the RoPE relative positional embeddings
-        freqs_cos, freqs_sin = precompute_freqs_cis(self.params.dim // self.params.n_heads, self.params.max_seq_len)
+        # 这里提前分配超长数据
+        freqs_cos, freqs_sin = precompute_freqs_cis(self.params.dim // self.params.n_heads, self.params.max_seq_len*8192)
         self.register_buffer("freqs_cos", freqs_cos, persistent=False)
         self.register_buffer("freqs_sin", freqs_sin, persistent=False)
 

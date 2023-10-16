@@ -12,7 +12,8 @@ from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
 from share import get_lr, get_logger, init_model, init_ddp
 
 
-def sft_epoch(epoch,opt):
+def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
+    iter_per_epoch=len(train_loader)
     start_time=time.time()
     for step, (X, Y,loss_mask) in enumerate(train_loader):
         X=X.to(opt.device)
@@ -40,15 +41,17 @@ def sft_epoch(epoch,opt):
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
         #
-        # clip the gradient
-        if opt.grad_clip != 0.0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)
-        # step the optimizer and scaler if training in fp16
-        scaler.step(optimizer)
-        scaler.update()
-        # flush the gradients as soon as we can, no need for this memory anymore
-        optimizer.zero_grad(set_to_none=True)
+        if((step+1) % opt.gradient_accumulation_steps)==0:
+            # clip the gradient
+            if opt.grad_clip != 0.0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)
+            # step the optimizer and scaler if training in fp16
+            scaler.step(optimizer)
+            scaler.update()
+            # flush the gradients as soon as we can, no need for this memory anymore
+            optimizer.zero_grad(set_to_none=True)
+            
         #打印日志
         if step % opt.log_interval == 0:
             spend_time=time.time()-start_time
@@ -62,23 +65,19 @@ def sft_epoch(epoch,opt):
                         optimizer.param_groups[-1]['lr'],
                         spend_time / (step+1) * iter_per_epoch // 60 - spend_time // 60))
 
-# I/O
-if __name__=="__main__":
-    from setting import parser_args
-    opt = parser_args()
+def sft_model(model_path, opt):
+    opt.config = os.path.join(model_path, 'config.yaml')
+    opt,config = parser_config(opt)
 
-    # -----------------------------------------------------------------------------
-    config_keys = [
-        k
-        for k, v in globals().items()
-        if not k.startswith("_") and isinstance(v, (int, float, bool, str))
-    ]
-    # exec(open("configurator.py").read())  # overrides from command line or config file
-    # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
-    # -----------------------------------------------------------------------------
 
-    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_sft_bell')
+    save_dir =model_path.replace('pretrain', 'sft_bell')
     if not os.path.exists(save_dir): os.makedirs(save_dir)
+
+    # 保存一份参数
+    with open(os.path.join(save_dir,'config.yaml'), "w") as file:
+        import yaml
+        file.write(yaml.dump(config))
+
     logger = get_logger(os.path.join(save_dir,'log.log'))
     # various inits, derived attributes, I/O setup
    # various inits, derived attributes, I/O setup
@@ -95,7 +94,10 @@ if __name__=="__main__":
 
     #init model
     model=init_model(opt)
-    model.load_state_dict(torch.load(f'./out/{opt.save_path}_pretrain/epoch_{opt.max_epoch-1}.pth'))
+    for idx in range(opt.max_epoch):
+        if os.path.exists(os.path.join(model_path, f'epoch_{opt.max_epoch-1-idx}.pth')):
+            model.load_state_dict(torch.load(os.path.join(model_path, f'epoch_{opt.max_epoch-1-idx}.pth')))
+            break
     model.to(opt.device)
     # initialize a GradScaler. If enabled=False scaler is a no-op
     scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
@@ -145,13 +147,25 @@ if __name__=="__main__":
 
     print(f"====================sft_epoch====================")
 
-    iter_per_epoch=len(train_loader)
     warmup_epoch=1
 
     # training loop
     for epoch in range(opt.max_epoch):
-        sft_epoch(epoch,opt)
+        sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger)
         #val_loss=valid_epoch(epoch)
         torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
     if ddp:
         destroy_process_group()
+
+# I/O
+if __name__=="__main__":
+    from setting import parser_args,parser_config
+    opt = parser_args()
+    
+    # 遍历out目录下的所有pretrain文件夹,全部sft处理
+    pretrain_list = os.listdir(opt.out_dir)
+    for pretrain_model in pretrain_list:
+        model_path = os.path.join(opt.out_dir, pretrain_model)
+        if 'pretrain' in model_path:
+            print(f'**************model_path: {model_path}**************')
+            sft_model(model_path, opt)

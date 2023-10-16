@@ -1,5 +1,4 @@
 import os
-# os.environ['CUDA_VISIBLE_DEVICES'] = '5,6'
 import time
 import numpy as np
 import torch
@@ -7,7 +6,8 @@ from torch.distributed import destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset import PretrainDataset
-from share import get_lr, get_logger, init_model,init_ddp
+from share import get_lr,get_logger,init_model,init_ddp
+
 
 #To run with DDP on 4 gpus on 1 node, example:
 # torchrun --standalone --nproc_per_node=4 pretrain.py OR python -m torch.distributed.launch --nproc_per_node=4 pretrain.py
@@ -18,7 +18,7 @@ def pretrain_epoch(epoch, opt):
         Y=Y.to(opt.device)
         lr = get_lr(epoch*iter_per_epoch+step, opt) if opt.decay_lr else opt.learning_rate
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group['lr'] = lr*(1.0 + (opt.gradient_accumulation_steps-1)*0.1)
         # and using the GradScaler if data type is float16
         #for micro_step in range(gradient_accumulation_steps):
         
@@ -28,25 +28,34 @@ def pretrain_epoch(epoch, opt):
             # I really dislike that this bloats the code and forces us to repeat code
             # looking at the source of that context manager, it just toggles this variable
             model.require_backward_grad_sync = 0 == opt.gradient_accumulation_steps - 1
+        
         with ctx:
             logits = model(X, Y)
             loss = raw_model.last_loss
-            #loss = loss / gradient_accumulation_steps
+            # loss.reduction ='mean':
+            loss = loss / opt.gradient_accumulation_steps
+        
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
         #
-        # clip the gradient
-        if opt.grad_clip != 0.0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)
-        # step the optimizer and scaler if training in fp16
-        scaler.step(optimizer)
-        scaler.update()
-        # flush the gradients as soon as we can, no need for this memory anymore
-        optimizer.zero_grad(set_to_none=True)
+        if((step+1) % opt.gradient_accumulation_steps)==0:
+            # clip the gradient
+            if opt.grad_clip != 0.0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), opt.grad_clip)
+            # step the optimizer and scaler if training in fp16
+            scaler.step(optimizer)
+            scaler.update()
+            # flush the gradients as soon as we can, no need for this memory anymore
+            optimizer.zero_grad(set_to_none=True)
+
         #打印日志
         if step % opt.log_interval == 0:
+            if opt.use_tensorboard:
+                from share import tensorboard_logger
+                tensorboard_logger(loss,epoch)
+               
             spend_time=time.time()-start_time
             logger.info(
                     'Epoch:[{}/{}] ({}/{}) loss:{:.3f} lr:{:.7f}  epoch_Time: {} min.'.format(
@@ -83,8 +92,9 @@ def valid_epoch(epoch):
 # I/O
 if __name__=="__main__":
     
-    from setting import parser_args
+    from setting import parser_args,parser_config
     opt = parser_args()
+    opt,config = parser_config(opt)
 
     # -----------------------------------------------------------------------------
     config_keys = [
@@ -96,8 +106,14 @@ if __name__=="__main__":
     # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
     # -----------------------------------------------------------------------------
 
-    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain')
+    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain_accum{opt.gradient_accumulation_steps}')
     if not os.path.exists(save_dir): os.makedirs(save_dir)
+
+    # 保存一份参数
+    with open(os.path.join(save_dir,'config.yaml'), "w") as file:
+        import yaml
+        file.write(yaml.dump(config))
+
     logger = get_logger(os.path.join(save_dir,'log.log'))
     # various inits, derived attributes, I/O setup
    # various inits, derived attributes, I/O setup
@@ -117,6 +133,7 @@ if __name__=="__main__":
     # optimizer
     optimizer = model.configure_optimizers(opt.weight_decay, opt.learning_rate, (opt.beta1, opt.beta2), opt.device)
     # initialize a GradScaler. If enabled=False scaler is a no-op
+    # 混合精度训练、在内存中用FP16做储存和乘法从而加速计算，而用FP32做累加避免舍入误差。
     scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
     #
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=opt.max_epoch, T_mult=1, eta_min=1e-6, last_epoch=-1)

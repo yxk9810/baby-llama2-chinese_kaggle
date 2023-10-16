@@ -23,6 +23,14 @@ def get_logger(filename, verbosity=1, name=None):
     logger.addHandler(sh)
     return logger
 
+def tensorboard_logger(loss,epoch):
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter(log_dir='./tensorboard_logs', comment='train_loss')
+    # writer.add_image("cat",cat_img_224)
+    writer.add_scalars('data/data_group', {'loss': loss}, epoch)
+    writer.close()
+
+
 # -----------------------------------------------------------------------------
 def get_lr(it, opt):
     # 1) linear warmup for warmup_iters steps
