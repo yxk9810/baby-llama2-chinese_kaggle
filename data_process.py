@@ -93,11 +93,11 @@ def process_medical_qa():
             line=json.loads(row)
             q=line['question']
             rc=line['response_chosen']
-            rr=line['response_rejected']
+            # rr=line['response_rejected']
             q_id=tokenizer.encode(q,add_special_tokens=False)
             rc_id=tokenizer.encode(rc,add_special_tokens=False)
-            rr_id=tokenizer.encode(rr,add_special_tokens=False)
-            text_id=q_id+rc_id+rr_id+[tokenizer.special_tokens['<eos>']]
+            # rr_id=tokenizer.encode(rr,add_special_tokens=False)
+            text_id=q_id+rc_id+[tokenizer.special_tokens['<eos>']]
             if len(text_id)>5:
                 doc_ids+=text_id
 
@@ -309,13 +309,13 @@ def sft_process():
 if __name__=="__main__":
     tokenizer=ChatGLMTokenizer(vocab_file='./chatglm_tokenizer/tokenizer.model')
     print('process_baidu.')
-    # process_baidu('./data/563w_baidubaike.json')
+    process_baidu('./data/563w_baidubaike.json')
     print('process_wiki_clean.')
-    # process_wiki_clean()
+    process_wiki_clean()
     print('process_medical: medical_book_zh')
-    # process_medical('./data/medical_book_zh.json','book')
+    process_medical('./data/medical_book_zh.json','book')
     print('process_medical: train_encyclopedia')
-    # process_medical('./data/train_encyclopedia.json','encyclopedia')
+    process_medical('./data/train_encyclopedia.json','encyclopedia')
     print('process_medical_qa.')
     process_medical_qa()
 
@@ -336,8 +336,6 @@ if __name__=="__main__":
     for data_path in data_path_list:
         print(f'read data: {data_path}')
         with open(data_path,'rb') as f:
-            flen = f.tell() // np.dtype('uint16').itemsize
-            print(f'token size: {flen}')
             data=np.fromfile(f,dtype=np.uint16)
             data_lst.append(data)
 
@@ -345,7 +343,6 @@ if __name__=="__main__":
     print(arr.shape)
     with open('./data/pretrain_data.bin','wb') as f:
         f.write(arr.tobytes())
-
 
     print('valid_medical.')
     process_valid_medical()
@@ -355,4 +352,4 @@ if __name__=="__main__":
     # process_test_medical()
 
     print('sft_process.')
-    # sft_process()
+    sft_process()
