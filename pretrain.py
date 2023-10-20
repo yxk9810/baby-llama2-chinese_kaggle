@@ -5,7 +5,7 @@ import torch
 from torch.distributed import destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from dataset import PretrainDataset
+from dataset_pretrain import PretrainDataset
 from share import get_lr,get_logger,init_model,init_ddp
 
 
@@ -196,7 +196,7 @@ if __name__=="__main__":
     for epoch in range(opt.max_epoch):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
-            
+
         pretrain_epoch(epoch,opt)
         val_loss=valid_epoch(opt)
 

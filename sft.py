@@ -7,7 +7,7 @@ from torch.distributed import destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import pandas as pd
 from dataset_sft import SFTDataset
-from dataset import PretrainDataset
+from dataset_pretrain import PretrainDataset
 import torch.nn.functional as F
 from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
 from share import get_lr, get_logger, init_model, init_ddp
@@ -20,6 +20,7 @@ def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
     for step, (X, Y,loss_mask) in enumerate(train_loader):
         X=X.to(opt.device)
         Y=Y.to(opt.device)
+        
         loss_mask=loss_mask.to(opt.device)
         lr = get_lr(epoch*iter_per_epoch+step, opt) if opt.decay_lr else opt.learning_rate
         for param_group in optimizer.param_groups:
@@ -183,7 +184,7 @@ def sft_model(model_path, opt):
     
         sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger)
         val_loss=valid_epoch(opt, model, raw_model, val_loader,ctx, logger)
-        
+
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
