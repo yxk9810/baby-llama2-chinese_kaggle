@@ -13,8 +13,7 @@ from share import get_lr,get_logger,init_model,init_ddp
 # torchrun --standalone --nproc_per_node=4 pretrain.py OR python -m torch.distributed.launch --nproc_per_node=4 pretrain.py
 def pretrain_epoch(epoch, opt):
     start_time=time.time()
-    if train_sampler is not None:
-        train_sampler.set_epoch(epoch)
+    iter_per_epoch=len(train_loader)
 
     for step, (X, Y) in enumerate(train_loader):
         X=X.to(opt.device)
@@ -63,7 +62,7 @@ def pretrain_epoch(epoch, opt):
                
             spend_time=time.time()-start_time
             logger.info(
-                    'Epoch:[{}/{}] ({}/{}) loss:{:.3f} lr:{:.7f}  epoch_Time: {} min.'.format(
+                    'Epoch:[{}/{}] ({}/{}) loss:{:.3f} lr:{:.7f}  epoch_time: {} min.'.format(
                         epoch,
                         opt.max_epoch, 
                         step, 
@@ -190,12 +189,14 @@ if __name__=="__main__":
 
     print(f"====================pretrain_epoch====================")
 
-    iter_per_epoch=len(train_loader)
     warmup_epoch=1
     
     # training loop
     best_val_loss = 1e9
     for epoch in range(opt.max_epoch):
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
+            
         pretrain_epoch(epoch,opt)
         val_loss=valid_epoch(opt)
 

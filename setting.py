@@ -7,6 +7,7 @@ def parser_args():
     parser.add_argument("--save_path", type=str, default='20230815_baike', help="path to config")
     parser.add_argument("--train_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
     parser.add_argument("--valid_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
+    parser.add_argument("--test_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
     parser.add_argument("--sft_data_path", type=str, default='./data/sft_data.csv', help="path to config")
     parser.add_argument("--max_seq_len", type=int, default=512)
     parser.add_argument("--out_dir", type=str, default='out', help="path to config")
@@ -69,6 +70,7 @@ def parser_config(opt):
     opt.train_data_path = config['dataset_params']['train_data_path']
     opt.valid_data_path = config['dataset_params']['valid_data_path']
     opt.sft_data_path = config['dataset_params']['sft_data_path']
+    opt.test_data_path = config['dataset_params']['test_data_path']
     opt.max_seq_len = config['dataset_params']['max_seq_len']
     
     opt.model_path = config['model_path']

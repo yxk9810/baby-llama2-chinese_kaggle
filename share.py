@@ -2,7 +2,8 @@ import os
 import math
 from contextlib import nullcontext
 import torch
-from model import Transformer, ModelArgs
+from models.model import Transformer
+from models.utils import ModelArgs
 from torch.distributed import init_process_group
 import logging
 

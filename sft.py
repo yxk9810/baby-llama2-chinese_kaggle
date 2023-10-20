@@ -16,6 +16,7 @@ from share import get_lr, get_logger, init_model, init_ddp
 def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
     iter_per_epoch=len(train_loader)
     start_time=time.time()
+    
     for step, (X, Y,loss_mask) in enumerate(train_loader):
         X=X.to(opt.device)
         Y=Y.to(opt.device)
@@ -31,6 +32,7 @@ def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
             # I really dislike that this bloats the code and forces us to repeat code
             # looking at the source of that context manager, it just toggles this variable
             model.require_backward_grad_sync = 0 == opt.gradient_accumulation_steps - 1
+        
         with ctx:
             logits = model(X, Y)
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), Y.view(-1), ignore_index=0,reduce=False)
@@ -57,7 +59,7 @@ def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
         if step % opt.log_interval == 0:
             spend_time=time.time()-start_time
             logger.info(
-                    'Epoch:[{}/{}]({}/{}) loss:{:.3f} lr:{:.7f} epoch_Time:{}min:'.format(
+                    'Epoch:[{}/{}] ({}/{}) loss:{:.3f} lr:{:.7f}  epoch_time: {} min.'.format(
                         epoch,
                         opt.max_epoch, 
                         step, 
@@ -119,10 +121,11 @@ def sft_model(model_path, opt):
     ckpt = torch.load(opt.model_path)
     model.load_state_dict(ckpt)
     model.to(opt.device)
-    # initialize a GradScaler. If enabled=False scaler is a no-op
-    scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
+
     # optimizer
     optimizer = model.configure_optimizers(opt.weight_decay, opt.learning_rate, (opt.beta1, opt.beta2), opt.device)
+    # initialize a GradScaler. If enabled=False scaler is a no-op
+    scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
     #
     scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=opt.max_epoch, T_mult=1, eta_min=1e-6, last_epoch=-1)
     
@@ -147,6 +150,10 @@ def sft_model(model_path, opt):
     print(f"====================prepear dataset====================")
 
     train_ds = SFTDataset(opt.sft_data_path,tokenizer, max_length=opt.max_seq_len)
+    if ddp:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(train_ds)
+    else:
+        train_sampler = None
     train_loader = torch.utils.data.DataLoader(
         train_ds,
         batch_size=opt.batch_size,
@@ -154,6 +161,7 @@ def sft_model(model_path, opt):
         drop_last=False,
         shuffle=False,        
         num_workers=0,
+        sampler=train_sampler
     )
     val_ds = PretrainDataset(opt.valid_data_path, max_length=256)
     val_loader = torch.utils.data.DataLoader(
@@ -167,19 +175,29 @@ def sft_model(model_path, opt):
 
     print(f"====================sft_epoch====================")
 
-    warmup_epoch=1
-
-    # training loop
+    # sft loop
     best_val_loss = 1e9
     for epoch in range(opt.max_epoch):
+        if train_sampler is not None:
+            train_sampler.set_epoch(epoch)
+    
         sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger)
-        torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
-
         val_loss=valid_epoch(opt, model, raw_model, val_loader,ctx, logger)
+        
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
-            torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
+            if ddp:
+                if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
+                    torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
+            else:
+                torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
+
+        if ddp:
+            if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
+                torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
+        else:
+            torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
     if ddp:
         destroy_process_group()
 

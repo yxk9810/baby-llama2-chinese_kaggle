@@ -6,11 +6,12 @@ import json
 from contextlib import nullcontext
 import torch
 import pandas as pd
-from model import ModelArgs, Transformer
+from models.model import Transformer
+from models.utils import ModelArgs
 from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
 import numpy as np
 from setting import parser_args,parser_config
-
+from tqdm import tqdm
 
 def compute_bleu(labels, preds, weights=None):
     from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
@@ -20,37 +21,31 @@ def compute_bleu(labels, preds, weights=None):
                                   smoothing_function=SmoothingFunction().method1,
                                   weights=weights) for label, pred in zip(labels, preds)])
 
-def eval_medical(model,tokenizer,ctx,logger):
+def eval_medical(model,tokenizer,opt,ctx,logger):
     answer_list=[]
     predict_lst=[]
     print(f'*************medical eval*************')
 
-    medical_path_list = [
-        'data/valid_zh_0.json',
-        'data/valid_en_1.json',
-    ]
-
     scores = dict()
-    for eval_data_path in medical_path_list:
+    for eval_data_path in opt.test_data_path:
         with open(eval_data_path,'r',encoding='utf-8') as f:
-            from tqdm import tqdm
-            line_num=0
             for row in tqdm(f):
                 line=json.loads(row)
-                if line_num>100:
-                    break
 
-                line_num+=1
                 # run generation
-                prompt=line['instruction']#+line['input']
+                if 'data/test.json' == eval_data_path:
+                    prompt=line['question']
+                    answer=line['response_chosen']
+                else : # 'test_en_1.json' == eval_data_path:
+                    prompt=line['instruction']+line['input']
+                    answer=line['output']
+
                 x=tokenizer.encode(prompt,add_special_tokens=False)+[tokenizer.special_tokens['<eos>']]
                 x = (torch.tensor(x, dtype=torch.long, device=opt.device)[None, ...])
-                answer=line['output']
                 answer_list.append(answer)
                 with torch.no_grad():
                     with ctx:
                         y = model.generate(x, 2, opt.max_new_tokens, temperature=opt.temperature, top_k=opt.top_k)
-                        #
                         predict=tokenizer.decode(y[0].tolist())
                         predict=predict.replace(prompt,'')
                         predict_lst.append(predict)
@@ -147,7 +142,7 @@ def eval(model_path_,opt,logger):
     tokenizer=ChatGLMTokenizer(vocab_file=opt.vocab_file)
     #
 
-    eval_medical(model, tokenizer, ctx, logger)
+    eval_medical(model, tokenizer, opt, ctx, logger)
     eval_ceval(model, tokenizer, opt, logger)
     eval_mmlu(model, tokenizer, opt, logger)
     # eval_longbench(model, tokenizer, opt, logger)

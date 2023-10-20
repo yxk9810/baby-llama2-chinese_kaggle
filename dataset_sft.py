@@ -32,7 +32,7 @@ class SFTDataset(Dataset):
         # df['answer']=target
         # df=pd.concat((df_sft,df[100:])).reset_index(drop=True)
         self.df=self.df.sample(frac=1.0)
-        print(self.df)
+        print(f'sft data size: {self.df.shape[0]}')
 
         self.max_length = max_length
         self.prompt_max_len = prompt_max_len

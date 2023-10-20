@@ -14,6 +14,11 @@ dataset_params:
         './data/valid_data.bin'
     ]
   sft_data_path: './data/sft_data.csv'
+  test_data_path: [
+        'data/test.json',
+        'data/test_zh_0.json',
+        'data/test_en_1.json',
+    ]
 
 model_path: 'best.model'
 model_params:
