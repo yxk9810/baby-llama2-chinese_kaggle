@@ -33,6 +33,7 @@ class SFTDataset(Dataset):
         # df['answer']=target
         # df=pd.concat((df_sft,df[100:])).reset_index(drop=True)
         self.df=self.df.sample(frac=1.0)
+        # self.df = self.df[0:1000]
         print(f'sft data size: {self.df.shape[0]}')
 
         self.max_length = max_length
@@ -70,13 +71,12 @@ class SFTDataset(Dataset):
             loss_mask = [0]*context_length+[1]*(len(input_id[mask_position+1:])) + [0]*pad_len
         else:
             loss_mask = [0]*context_length+[1]*(len(input_id[mask_position+1:-pad_len])) + [0]*pad_len
-        #
-        input_id=np.array(input_id)
 
+        input_id=np.array(input_id)
         X=np.array(input_id[:-1]).astype(np.int64)
         Y=np.array(input_id[1:]).astype(np.int64)
         loss_mask=np.array(loss_mask[:-1])
-        #
+
         return torch.from_numpy(X),torch.from_numpy(Y),torch.from_numpy(loss_mask)
 
 

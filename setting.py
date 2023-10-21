@@ -17,7 +17,7 @@ def parser_args():
     parser.add_argument("--dim", type=int, default=512)
     parser.add_argument("--n_layers", type=int, default=8)
     parser.add_argument("--n_heads", type=int, default=8)
-    parser.add_argument("--n_kv_heads", type=int, default=0)
+    parser.add_argument("--n_kv_heads", type=int, default=0, help="0及其以下,则取n_heads的值,为MHQ.为1则是MQA,大于1且小于n_layers则为GQA")
     parser.add_argument("--bias", type=bool, default=False)
     parser.add_argument("--dtype", type=str, default='float16', help="path to config")
     parser.add_argument("--vocab_size", type=int, default=64793)

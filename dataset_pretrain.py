@@ -23,7 +23,7 @@ class PretrainDataset(Dataset):
                     data_lst.append(data)
             data = np.concatenate(data_lst)
             data = data[:max_length*int(len(data)/max_length)]
-            #np.random.shuffle(data)
+            np.random.shuffle(data)
             self.data = data.reshape(-1,max_length)
         #
 
