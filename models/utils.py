@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
 
-import torch.nn.functional as F
-from torch import nn
 
 @dataclass
 class ModelArgs:
@@ -15,3 +13,5 @@ class ModelArgs:
     norm_eps: float = 1e-5
     max_seq_len: int = 2048
     dropout: float = 0.0
+    flash_attention : bool =False
+    model_type : str = 'Model'

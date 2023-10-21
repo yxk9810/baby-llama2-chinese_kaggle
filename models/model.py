@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from models.utils import ModelArgs
-from models.layers.position_code import precompute_freqs_cis,apply_rotary_emb
+from models.layers.position_code import precompute_freqs_cis
 from models.layers.layernorm import RMSNorm
 from models.layers.attention import Attention
 from models.layers.ffn import FeedForward
@@ -46,13 +46,15 @@ class Transformer(nn.Module):
         self.vocab_size = params.vocab_size
         self.n_layers = params.n_layers
 
-        self.tok_embeddings = nn.Embedding(params.vocab_size, params.dim)
+        vocab_size = ((params.vocab_size + 63) // 64) * 64
+
+        self.tok_embeddings = nn.Embedding(vocab_size, params.dim)
         self.dropout = nn.Dropout(params.dropout)
         self.layers = torch.nn.ModuleList()
         for layer_id in range(params.n_layers):
             self.layers.append(TransformerBlock(layer_id, params))
         self.norm = RMSNorm(params.dim, eps=params.norm_eps)
-        self.output = nn.Linear(params.dim, params.vocab_size, bias=False)
+        self.output = nn.Linear(params.dim, vocab_size, bias=False)
 
         # share the unembedding parameters with the embedding parameters
         self.tok_embeddings.weight = self.output.weight # https://paperswithcode.com/method/weight-tying
@@ -84,6 +86,7 @@ class Transformer(nn.Module):
     def forward(self, tokens: torch.Tensor, targets: Optional[torch.Tensor] = None) -> torch.Tensor:
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
+        
         h = self.dropout(h)
         freqs_cos = self.freqs_cos[:seqlen]
         freqs_sin = self.freqs_sin[:seqlen]

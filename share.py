@@ -2,8 +2,8 @@ import os
 import math
 from contextlib import nullcontext
 import torch
-from models.model import Transformer
 from models.utils import ModelArgs
+from models.model_loader import _get_model_architecture
 from torch.distributed import init_process_group
 import logging
 
@@ -47,6 +47,7 @@ def get_lr(it, opt):
     return opt.min_lr + coeff * (opt.learning_rate - opt.min_lr)
 
 # -----------------------------------------------------------------------------
+
 def init_model(opt):
     # model init
     # model init
@@ -54,17 +55,21 @@ def init_model(opt):
         dim=opt.dim,
         n_layers=opt.n_layers,
         n_heads=opt.n_heads,
-        n_kv_heads=opt.n_heads,
+        n_kv_heads=opt.n_kv_heads if opt.n_kv_heads > 0 else opt.n_heads,
         vocab_size=opt.vocab_size,#64793,
         multiple_of=opt.multiple_of,
         max_seq_len=opt.max_seq_len,
         dropout=opt.dropout,
+        flash_attention = True,
+        model_type = 'Model',
     )  # start with model_args from command line
+
+
     if opt.init_from == "scratch":
         # init a new model from scratch
         print("Initializing a new model from scratch")
         gptconf = ModelArgs(**model_args)
-        model = Transformer(gptconf)
+        model = _get_model_architecture(gptconf.model_type)(gptconf)
     elif opt.init_from == "resume":
         print(f"Resuming training from {opt.model_path}")
         # resume training from a checkpoint.
@@ -77,7 +82,7 @@ def init_model(opt):
             model_args[k] = checkpoint_model_args[k]
         # create the model
         gptconf = ModelArgs(**model_args)
-        model = Transformer(gptconf)
+        model = _get_model_architecture(gptconf.model_type)(gptconf)
         state_dict = checkpoint["model"]
         # fix the keys of the state dictionary :(
         # honestly no idea how checkpoints sometimes get this prefix, have to debug more

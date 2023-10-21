@@ -17,6 +17,7 @@ def parser_args():
     parser.add_argument("--dim", type=int, default=512)
     parser.add_argument("--n_layers", type=int, default=8)
     parser.add_argument("--n_heads", type=int, default=8)
+    parser.add_argument("--n_kv_heads", type=int, default=0)
     parser.add_argument("--bias", type=bool, default=False)
     parser.add_argument("--dtype", type=str, default='float16', help="path to config")
     parser.add_argument("--vocab_size", type=int, default=64793)
@@ -78,6 +79,7 @@ def parser_config(opt):
     opt.dim = config['model_params']['dim']
     opt.n_layers = config['model_params']['n_layers']
     opt.n_heads = config['model_params']['n_heads']
+    opt.n_kv_heads = config['model_params']['n_kv_heads']
     opt.bias = config['model_params']['bias']
     opt.dtype = config['model_params']['dtype']
     opt.vocab_size = config['model_params']['vocab_size']

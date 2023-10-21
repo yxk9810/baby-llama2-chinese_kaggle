@@ -4,8 +4,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from models.utils import ModelArgs
-from models.layers.layernorm import RMSNorm
-from models.layers.position_code import precompute_freqs_cis,apply_rotary_emb
+from models.layers.position_code import apply_rotary_emb
 
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -35,14 +34,17 @@ class Attention(nn.Module):
         self.attn_dropout = nn.Dropout(args.dropout)
         self.resid_dropout = nn.Dropout(args.dropout)
         self.dropout = args.dropout
+        self.flash_attention = args.flash_attention
 
-        # use flash attention or a manual implementation?
-        self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
-        if not self.flash:
-            print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
-            mask = torch.full((1, 1, args.max_seq_len, args.max_seq_len), float("-inf"))
-            mask = torch.triu(mask, diagonal=1)
-            self.register_buffer("mask", mask)
+        if not self.flash_attention:
+            # use flash attention or a manual implementation?
+            self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
+            if not self.flash:
+                print("WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0")
+                mask = torch.full((1, 1, args.max_seq_len, args.max_seq_len), float("-inf"))
+                mask = torch.triu(mask, diagonal=1)
+                self.register_buffer("mask", mask)
+
 
     def forward(
         self,
@@ -65,25 +67,35 @@ class Attention(nn.Module):
         xk = repeat_kv(xk, self.n_rep)  # (bs, seqlen, n_local_heads, head_dim)
         xv = repeat_kv(xv, self.n_rep)  # (bs, seqlen, n_local_heads, head_dim)
 
-        # make heads into a batch dimension
-        xq = xq.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
-        xk = xk.transpose(1, 2)
-        xv = xv.transpose(1, 2)
+        if self.flash_attention:
+            from flash_attn import flash_attn_func, flash_attn_qkvpacked_func
+            output = flash_attn_func(xq, xk, xv, self.dropout, causal=True)
 
-        # flash implementation
-        if self.flash:
-            output = torch.nn.functional.scaled_dot_product_attention(xq, xk, xv, attn_mask=None, dropout_p=self.dropout if self.training else 0.0, is_causal=True)
+            # qkv = torch.stack((xq, xk, xv), 2)
+            # output = flash_attn_qkvpacked_func(qkv, self.dropout, causal=True)
+
+            # restore time as batch dimension and concat heads
+            output = output.contiguous().view(bsz, seqlen, -1)
         else:
-            # manual implementation
-            scores = torch.matmul(xq, xk.transpose(2, 3)) / math.sqrt(self.head_dim)
-            assert hasattr(self, 'mask')
-            scores = scores + self.mask[:, :, :seqlen, :seqlen]   # (bs, n_local_heads, seqlen, cache_len + seqlen)
-            scores = F.softmax(scores.float(), dim=-1).type_as(xq)
-            scores = self.attn_dropout(scores)
-            output = torch.matmul(scores, xv)  # (bs, n_local_heads, seqlen, head_dim)
+            # make heads into a batch dimension
+            xq = xq.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
+            xk = xk.transpose(1, 2)
+            xv = xv.transpose(1, 2)
 
-        # restore time as batch dimension and concat heads
-        output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
+            # flash implementation
+            if self.flash:
+                output = torch.nn.functional.scaled_dot_product_attention(xq, xk, xv, attn_mask=None, dropout_p=self.dropout if self.training else 0.0, is_causal=True)
+            else:
+                # manual implementation
+                scores = torch.matmul(xq, xk.transpose(2, 3)) / math.sqrt(self.head_dim)
+                assert hasattr(self, 'mask')
+                scores = scores + self.mask[:, :, :seqlen, :seqlen]   # (bs, n_local_heads, seqlen, cache_len + seqlen)
+                scores = F.softmax(scores.float(), dim=-1).type_as(xq)
+                scores = self.attn_dropout(scores)
+                output = torch.matmul(scores, xv)  # (bs, n_local_heads, seqlen, head_dim)
+
+            # restore time as batch dimension and concat heads
+            output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
 
         # final projection into the residual stream
         output = self.wo(output)

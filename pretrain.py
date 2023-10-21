@@ -7,7 +7,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from dataset_pretrain import PretrainDataset
 from share import get_lr,get_logger,init_model,init_ddp
-
+from numpy import *
 
 #To run with DDP on 4 gpus on 1 node, example:
 # torchrun --standalone --nproc_per_node=4 pretrain.py OR python -m torch.distributed.launch --nproc_per_node=4 pretrain.py
@@ -15,7 +15,10 @@ def pretrain_epoch(epoch, opt):
     start_time=time.time()
     iter_per_epoch=len(train_loader)
 
+    avce_time = []
     for step, (X, Y) in enumerate(train_loader):
+        single_time_start=time.time()
+
         X=X.to(opt.device)
         Y=Y.to(opt.device)
         lr = get_lr(epoch*iter_per_epoch+step, opt) if opt.decay_lr else opt.learning_rate
@@ -53,6 +56,12 @@ def pretrain_epoch(epoch, opt):
             scaler.update()
             # flush the gradients as soon as we can, no need for this memory anymore
             optimizer.zero_grad(set_to_none=True)
+
+        single_time_end=time.time()
+        avce_time.append(single_time_end - single_time_start)
+        if len(avce_time) > 50:
+            del(avce_time[0])
+        # print(f'model train ave time: {round(mean(avce_time),6)} s')
 
         #打印日志
         if step % opt.log_interval == 0:

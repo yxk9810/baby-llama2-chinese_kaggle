@@ -172,6 +172,12 @@ if __name__=="__main__":
         if os.path.isdir(model_path_):
             opt.config = os.path.join(model_path_, 'config.yaml')
             opt,_ = parser_config(opt)
-            opt.save_path = os.path.join(model_path_, 'best.pth')
-            print(f'*************eval model: {model_path_}*************')
-            eval(opt.save_path,opt,logger)
+
+            model_list = os.listdir(model_path_)
+            for model_name in model_list:
+                model_n = os.path.join(model_path_, model_name)
+                
+                if model_n.endswith('.pth'):
+                    opt.save_path = model_n #os.path.join(model_path_, 'best.pth')
+                    print(f'*************eval model: {model_path_}*************')
+                    eval(opt.save_path,opt,logger)
