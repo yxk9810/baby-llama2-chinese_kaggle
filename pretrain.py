@@ -23,30 +23,30 @@ def pretrain_epoch(epoch, opt):
         Y=Y.to(opt.device)
         lr = get_lr(epoch*iter_per_epoch+step, opt) if opt.decay_lr else opt.learning_rate
         for param_group in optimizer.param_groups:
-            param_group['lr'] = lr*(1.0 + (opt.gradient_accumulation_steps-1)*0.1)
+            param_group['lr'] = lr*(1.0 + (opt.grad_accum_steps-1)*0.1)
         # and using the GradScaler if data type is float16
-        #for micro_step in range(gradient_accumulation_steps):
+        #for micro_step in range(grad_accum_steps):
         
         if ddp:
             # in DDP training we only need to sync gradients at the last micro step.
             # the official way to do this is with model.no_sync() context manager, but
             # I really dislike that this bloats the code and forces us to repeat code
             # looking at the source of that context manager, it just toggles this variable
-            model.require_backward_grad_sync = 0 == opt.gradient_accumulation_steps - 1
+            model.require_backward_grad_sync = 0 == opt.grad_accum_steps - 1
         
         with ctx:
             logits = model(X, Y)
             loss = raw_model.last_loss
             # loss.reduction ='mean':
-            loss = loss / opt.gradient_accumulation_steps
+            loss = loss / opt.grad_accum_steps
         
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
-        tr_loss = loss.item() * opt.gradient_accumulation_steps
+        tr_loss = loss.item() * opt.grad_accum_steps
         
         #
-        if((step+1) % opt.gradient_accumulation_steps)==0:
+        if((step+1) % opt.grad_accum_steps)==0:
             # clip the gradient
             if opt.grad_clip != 0.0:
                 scaler.unscale_(optimizer)
@@ -117,7 +117,8 @@ if __name__=="__main__":
     # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
     # -----------------------------------------------------------------------------
 
-    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain_bs{opt.batch_size}_accum{opt.gradient_accumulation_steps}_h{opt.n_heads}_hkv{opt.n_kv_heads}')
+    save_name=f'pretrain_layer{opt.n_layers}_seqlen{opt.max_seq_len}_dim{opt.dim}_bs{opt.batch_size}_accum{opt.grad_accum_steps}_h{opt.n_heads}_hkv{opt.n_kv_heads}'
+    save_dir =os.path.join(opt.out_dir , save_name)
     if not os.path.exists(save_dir): os.makedirs(save_dir)
 
     # 保存一份参数
@@ -141,9 +142,15 @@ if __name__=="__main__":
     #init model
     model=init_model(opt)
     model.to(opt.device)
-    print(f"====================models====================\n",model)
-    print(f"====================models====================")
-
+    if torch.distributed.get_rank() == 0: 
+        tensor_n1, params1, tensor_n2, params2, num_nodecay_params = model.print_params()
+        print(f"=================models=================\n",model)
+        print(f"=================models:para=================\n",model.params)
+        print(f"[tok_embeddings]: num decayed parameter tensors: {tensor_n1}, with {params1} parameters")
+        print(f"[layers]: num decayed parameter tensors: {tensor_n2}*{len(model.layers)}, with {params2}*{len(model.layers)} parameters")
+        print(f"num decayed parameter tensors: {params1+params2*len(model.layers)} parameters")
+        print(f"num non-decayed parameter tensors {num_nodecay_params} parameters")
+        
     # optimizer
     optimizer = model.configure_optimizers(opt.weight_decay, opt.learning_rate, (opt.beta1, opt.beta2), opt.device)
     # initialize a GradScaler. If enabled=False scaler is a no-op

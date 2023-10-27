@@ -4,7 +4,7 @@ import yaml
 def parser_args():
     parser = ArgumentParser()
     parser.add_argument("--config", type=str, default='config/config.yaml', help="path to config")
-    parser.add_argument("--save_path", type=str, default='20230815_baike', help="path to config")
+    parser.add_argument("--save_path", type=str, default='', help="path to config")
     parser.add_argument("--train_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
     parser.add_argument("--valid_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
     parser.add_argument("--test_data_path", type=list, default=['./data/pretrain_data.bin'], help="path to config")
@@ -92,7 +92,7 @@ def parser_config(opt):
     opt.eval_only = config['train_params']['eval_only']
     opt.always_save_checkpoint = config['train_params']['always_save_checkpoint']
     opt.init_from = config['train_params']['init_from']
-    opt.gradient_accumulation_steps = config['train_params']['gradient_accumulation_steps']
+    opt.grad_accum_steps = config['train_params']['grad_accum_steps']
     opt.batch_size = config['train_params']['batch_size']
     opt.multiple_of = config['train_params']['multiple_of']
     opt.dropout = config['train_params']['dropout']
