@@ -17,11 +17,11 @@ def sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger):
     iter_per_epoch=len(train_loader)
     start_time=time.time()
     
-    for step, (X, Y,loss_mask) in enumerate(train_loader):
+    for step, (X, Y, loss_mask) in enumerate(train_loader):
         X=X.to(opt.device)
         Y=Y.to(opt.device)
-        
         loss_mask=loss_mask.to(opt.device)
+
         lr = get_lr(epoch*iter_per_epoch+step, opt) if opt.decay_lr else opt.learning_rate
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
@@ -89,7 +89,7 @@ def valid_epoch(opt, model, raw_model, val_loader,ctx, logger):
     return val_loss
 
 
-def sft_model(model_path, opt):
+def Full_ft_model(model_path, opt):
     opt.config = os.path.join(model_path, 'config.yaml')
     opt,config = parser_config(opt)
 
@@ -102,8 +102,8 @@ def sft_model(model_path, opt):
         file.write(yaml.dump(config))
 
     log_dir = os.path.join(save_dir,'log.log')
-    if os.path.exists(log_dir):
-        os.remove(log_dir) 
+    # if os.path.exists(log_dir):
+    #     os.remove(log_dir) 
     logger = get_logger(log_dir)
     # various inits, derived attributes, I/O setup
    # various inits, derived attributes, I/O setup
@@ -114,93 +114,99 @@ def sft_model(model_path, opt):
     if master_process:
         os.makedirs(opt.out_dir, exist_ok=True)
 
-    opt.model_path = os.path.join(model_path, f'best.pth')
-    print(f'**************model_path: {opt.model_path}**************')
 
-    #init model
-    model=init_model(opt)
-    ckpt = torch.load(opt.model_path)
-    model.load_state_dict(ckpt)
-    model.to(opt.device)
+    model_list = os.listdir(model_path)
+    for model_name in model_list:
+        if model_name.endswith('.pth'):
+            model_n = os.path.join(model_path, model_name)
 
-    # optimizer
-    optimizer = model.configure_optimizers(opt.weight_decay, opt.learning_rate, (opt.beta1, opt.beta2), opt.device)
-    # initialize a GradScaler. If enabled=False scaler is a no-op
-    scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
-    #
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=opt.max_epoch, T_mult=1, eta_min=1e-6, last_epoch=-1)
-    
-    # compile the model
-    if opt.compile:
-        print("compiling the model... (takes a ~minute)")
-        unoptimized_model = model
-        model = torch.compile(model) # requires PyTorch 2.0
-    # wrap model into DDP container
-    if ddp:
-        # Ignore the `freqs_cis` buffer so that DDP does not broadcast it at
-        # construction time since NCCL does not support `ComplexFloat`
-        prefix = "_orig_mod." if opt.compile else ""
-        model._ddp_params_and_buffers_to_ignore = {prefix + "freqs_cis"}
-        model = DDP(model, device_ids=[ddp_local_rank])
-        #
-    raw_model = model.module if ddp else model # unwrap DDP container if needed
-    
-    #-----init dataloader------
-    tokenizer=ChatGLMTokenizer(vocab_file=opt.vocab_file)
+            opt.model_path = model_n
+            print(f'**************model_path: {opt.model_path}**************')
 
-    print(f"====================prepear dataset====================")
+            #init model
+            model=init_model(opt)
+            ckpt = torch.load(opt.model_path)
+            model.load_state_dict(ckpt)
+            model.to(opt.device)
 
-    train_ds = SFTDataset(opt.sft_data_path,tokenizer, max_length=opt.max_seq_len)
-    if ddp:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_ds)
-    else:
-        train_sampler = None
-    train_loader = torch.utils.data.DataLoader(
-        train_ds,
-        batch_size=opt.batch_size,
-        pin_memory=False,
-        drop_last=False,
-        shuffle=False,        
-        num_workers=0,
-        sampler=train_sampler
-    )
-    val_ds = PretrainDataset(opt.valid_data_path, max_length=256)
-    val_loader = torch.utils.data.DataLoader(
-        val_ds,
-        batch_size=opt.batch_size,
-        pin_memory=False,
-        drop_last=False,
-        shuffle=False,        
-        num_workers=0,
-    )
-
-    print(f"====================sft_epoch====================")
-
-    # sft loop
-    best_val_loss = 1e9
-    for epoch in range(opt.max_epoch):
-        if train_sampler is not None:
-            train_sampler.set_epoch(epoch)
-    
-        sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger)
-        val_loss=valid_epoch(opt, model, raw_model, val_loader,ctx, logger)
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
+            # optimizer
+            optimizer = model.configure_optimizers(opt.weight_decay, opt.learning_rate, (opt.beta1, opt.beta2), opt.device)
+            # initialize a GradScaler. If enabled=False scaler is a no-op
+            scaler = torch.cuda.amp.GradScaler(enabled=(opt.dtype == 'float16'))
+            #
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=opt.max_epoch, T_mult=1, eta_min=1e-6, last_epoch=-1)
+            
+            # compile the model
+            if opt.compile:
+                print("compiling the model... (takes a ~minute)")
+                unoptimized_model = model
+                model = torch.compile(model) # requires PyTorch 2.0
+            # wrap model into DDP container
             if ddp:
-                if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
-                    torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
-            else:
-                torch.save(raw_model.state_dict(),'{}/best.pth'.format(save_dir))
+                # Ignore the `freqs_cis` buffer so that DDP does not broadcast it at
+                # construction time since NCCL does not support `ComplexFloat`
+                prefix = "_orig_mod." if opt.compile else ""
+                model._ddp_params_and_buffers_to_ignore = {prefix + "freqs_cis"}
+                model = DDP(model, device_ids=[ddp_local_rank])
+                #
+            raw_model = model.module if ddp else model # unwrap DDP container if needed
+            
+            #-----init dataloader------
+            tokenizer=ChatGLMTokenizer(vocab_file=opt.vocab_file)
 
-        if ddp:
-            if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
-                torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
-        else:
-            torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
-    if ddp:
-        destroy_process_group()
+            print(f"====================prepear dataset====================")
+
+            train_ds = SFTDataset(opt.sft_data_path,tokenizer, max_length=opt.max_seq_len)
+            if ddp:
+                train_sampler = torch.utils.data.distributed.DistributedSampler(train_ds)
+            else:
+                train_sampler = None
+            train_loader = torch.utils.data.DataLoader(
+                train_ds,
+                batch_size=opt.batch_size,
+                pin_memory=False,
+                drop_last=False,
+                shuffle=False,        
+                num_workers=0,
+                sampler=train_sampler
+            )
+            val_ds = PretrainDataset(opt.valid_data_path, max_length=256)
+            val_loader = torch.utils.data.DataLoader(
+                val_ds,
+                batch_size=opt.batch_size,
+                pin_memory=False,
+                drop_last=False,
+                shuffle=False,        
+                num_workers=0,
+            )
+
+            print(f"====================sft_epoch====================")
+
+            # sft loop
+            best_val_loss = 0.0
+            for epoch in range(opt.max_epoch):
+                if train_sampler is not None:
+                    train_sampler.set_epoch(epoch)
+            
+                sft_epoch(epoch,ddp,opt,train_loader,optimizer,model,scaler,ctx,logger)
+                val_loss=valid_epoch(opt, model, raw_model, val_loader,ctx, logger)
+
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    logger.info('best val_loss: {} best_epoch: {} '.format(best_val_loss,epoch))
+                    if ddp:
+                        if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
+                            torch.save(raw_model.state_dict(),'{}/pretrain_{}_best.pth'.format(save_dir,model_name.split('.')[0]))
+                    else:
+                        torch.save(raw_model.state_dict(),'{}/pretrain_{}_best.pth'.format(save_dir,model_name.split('.')[0]))
+
+                if ddp:
+                    if torch.distributed.get_rank() == 0:  #一般用0，当然，可以选任意的rank保存。
+                        torch.save(raw_model.state_dict(),'{}/pretrain_{}_epoch_{}.pth'.format(save_dir,model_name.split('.')[0],epoch))
+                else:
+                    torch.save(raw_model.state_dict(),'{}/pretrain_{}_epoch_{}.pth'.format(save_dir,model_name.split('.')[0],epoch))
+            if ddp:
+                destroy_process_group()
 
 # I/O
 if __name__=="__main__":
@@ -212,4 +218,4 @@ if __name__=="__main__":
     for pretrain_model in pretrain_list:
         model_path = os.path.join(opt.out_dir, pretrain_model)
         if 'pretrain' in model_path:
-            sft_model(model_path, opt)
+            Full_ft_model(model_path, opt)

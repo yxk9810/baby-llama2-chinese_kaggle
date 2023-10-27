@@ -46,6 +46,7 @@ class Transformer(nn.Module):
         self.vocab_size = params.vocab_size
         self.n_layers = params.n_layers
 
+		# vocab_size = self.vocab_size
         vocab_size = ((params.vocab_size + 63) // 64) * 64
 
         self.tok_embeddings = nn.Embedding(vocab_size, params.dim)
@@ -86,7 +87,7 @@ class Transformer(nn.Module):
     def forward(self, tokens: torch.Tensor, targets: Optional[torch.Tensor] = None) -> torch.Tensor:
         _bsz, seqlen = tokens.shape
         h = self.tok_embeddings(tokens)
-        
+
         h = self.dropout(h)
         freqs_cos = self.freqs_cos[:seqlen]
         freqs_sin = self.freqs_sin[:seqlen]

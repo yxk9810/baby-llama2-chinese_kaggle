@@ -28,6 +28,7 @@ def eval_medical(model,tokenizer,opt,ctx,logger):
 
     scores = dict()
     for eval_data_path in opt.test_data_path:
+        print(f'eval {eval_data_path}...')
         with open(eval_data_path,'r',encoding='utf-8') as f:
             for row in tqdm(f):
                 line=json.loads(row)
@@ -60,45 +61,57 @@ def eval_medical(model,tokenizer,opt,ctx,logger):
         score = compute_bleu(preds_lst, target_lst)*100
         print(f'{eval_data_path}: eval_scores: {score}')
         scores[eval_data_path] = score
+        logger.info(f'model: {opt.save_path}. [medical] [{eval_data_path}] scores: {score}')
 
     weighted_acc = sum(scores.values())/len(scores)
-    logger.info(f'model: {model_path_}. medical_eval_scores: {weighted_acc}')
+    logger.info(f'model: {opt.save_path}. [medical] aver_scores: {weighted_acc}')
 
 
 def eval_ceval(model, tokenizer, opt, logger):
     print(f'*************CEval*************')
     from eval.ceval import CEval
     ceval = CEval(model, tokenizer, opt)
-    average_acc=ceval.run('data/ceval-exam',opt.shot)*100
-    logger.info(f'model: {opt.save_path}. Ceval_eval_scores: {average_acc}')
+    accs, average_acc=ceval.run('data/ceval-exam',opt.shot)
+    for key in accs:
+        logger.info(f'model: {opt.save_path}. [Ceval] [{key}] scores: {accs[key]*100}')
+    logger.info(f'model: {opt.save_path}. [Ceval] aver_scores: {average_acc*100}')
 
 
 def eval_mmlu(model, tokenizer, opt, logger):
     print(f'*************MMLU*************')
     from eval.mmlu import mmlu_eval_func
-    weighted_acc=mmlu_eval_func('data/mmlu', opt, model, tokenizer)*100
-    logger.info(f'model: {opt.save_path}. MMLU_eval_scores: {weighted_acc}')
+    cat_cors, weighted_acc=mmlu_eval_func('data/mmlu', opt, model, tokenizer)
+    for cat in cat_cors:
+        cat_acc = np.mean(np.concatenate(cat_cors[cat]))
+        logger.info(f'model: {opt.save_path}. [MMLU] [{cat}] scores: {cat_acc*100}')
+    logger.info(f'model: {opt.save_path}. [MMLU] aver_scores: {weighted_acc*100}')
 
 
 def eval_longbench(model, tokenizer, opt, logger):
     print(f'*************LongBench*************')
     from eval.longbench import longbench_eval_func
-    weighted_acc=longbench_eval_func('data/longBench', opt, model, tokenizer)
-    logger.info(f'model: {opt.save_path}. LongBench_eval_scores: {weighted_acc}')
+    scores, weighted_acc=longbench_eval_func('data/longBench', opt, model, tokenizer)
+    for key in scores:
+        logger.info(f'model: {opt.save_path}. [LongBench] [{key}] scores: {scores[key]}')
+    logger.info(f'model: {opt.save_path}. [LongBench] aver_scores: {weighted_acc}')
 
 
 # def eval_LongEval(model, tokenizer, opt, logger):
 #     print(f'*************LongEval*************')
 #     from eval.longeval import longeval_eval_func
-#     weighted_acc=longeval_eval_func('data/longbench', opt, model, tokenizer)
-#     logger.info(f'model: {opt.save_path}. LongEval_eval_scores: {weighted_acc}')
+#     scores, weighted_acc=longbench_eval_func('data/longBench', opt, model, tokenizer)
+#     for key in scores:
+#         logger.info(f'model: {opt.save_path}. [LongBench] [{key}] scores: {scores[key]}')
+#     logger.info(f'model: {opt.save_path}. [LongBench] aver_scores: {weighted_acc}')
 
 
 # def eval_GSM8K(model, tokenizer, opt, logger):
 #     print(f'*************GSM8K*************')
 #     gsm8k = GSM8K(model, tokenizer, opt.output_dir)
-#     weighted_acc=gsm8k.run(opt.shot, opt.split)
-#     logger.info(f'model: {opt.save_path}. gsm8k_eval_scores: {weighted_acc}')
+#     scores, weighted_acc=gsm8k.run(opt.shot, opt.split)
+#     for key in scores:
+#         logger.info(f'model: {opt.save_path}. [gsm8k] [{key}] scores: {scores[key]}')
+#     logger.info(f'model: {opt.save_path}. [gsm8k] aver_scores: {weighted_acc}')
 
 
 def eval(model_path_,opt,logger):
@@ -142,13 +155,16 @@ def eval(model_path_,opt,logger):
     tokenizer=ChatGLMTokenizer(vocab_file=opt.vocab_file)
     #
 
-    eval_medical(model, tokenizer, opt, ctx, logger)
-    eval_ceval(model, tokenizer, opt, logger)
-    eval_mmlu(model, tokenizer, opt, logger)
-    # eval_longbench(model, tokenizer, opt, logger)
-    # eval_LongEval(model, tokenizer, opt, logger)
-    # eval_GSM8K(model, tokenizer, opt, logger)
-
+    try:
+        eval_medical(model, tokenizer, opt, ctx, logger)
+        eval_ceval(model, tokenizer, opt, logger)
+        eval_mmlu(model, tokenizer, opt, logger)
+        # eval_longbench(model, tokenizer, opt, logger)
+        # eval_LongEval(model, tokenizer, opt, logger)
+        # eval_GSM8K(model, tokenizer, opt, logger)
+    except:
+        print(f'*************eval model: {model_path_}  err!!!!!!!!!*************')
+        logger.info(f'model: {opt.save_path}. eval error!!!!!!!!!!!!!!!')
 
 
 # I/O

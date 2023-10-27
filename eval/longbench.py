@@ -229,5 +229,5 @@ def longbench_eval_func(data_path, opt, model, tokenizer):
     weighted_acc = sum(scores.values())/len(scores)
     print("LongBench Average accuracy: {:.3f}".format(weighted_acc))
 
-    return weighted_acc
+    return scores, weighted_acc
     

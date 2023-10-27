@@ -25,7 +25,7 @@ model_params:
   dim: 1024
   n_layers: 24
   n_heads: 32  # 要能被dim整除
-  n_kv_heads: 1  # 0及其以下，则取n_heads的值，为MHQ，为1则是MQA，大于1且小于n_layers则为GQA
+  n_kv_heads: 0  # 0及其以下，则取n_heads的值，为MHQ，为1则是MQA，大于1且小于n_layers则为GQA
   bias: False
   dtype: 'float16'
   vocab_size: 64793
@@ -40,7 +40,7 @@ train_params:
   eval_only: False
   always_save_checkpoint: True
   init_from: 'scratch'
-  gradient_accumulation_steps: 64
+  gradient_accumulation_steps: 256
   batch_size: 4
   multiple_of: 32
   dropout: 0.0

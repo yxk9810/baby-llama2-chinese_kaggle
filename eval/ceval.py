@@ -84,7 +84,7 @@ class CEval:
 
         # run all task
         for task_name in self.TASK2DESC:
-            print("=" * 100)
+            print("================================================================")
             print(f"run task: {task_name}")
             result, acc = self.run_single_task(data_path, task_name, shot)
             results[task_name] = result
@@ -104,7 +104,7 @@ class CEval:
             json.dump(accs, f, indent=2)
         print(f"Ceval average acc: {average_acc}\n")
 
-        return average_acc
+        return accs, average_acc
 
     def run_single_task(self, data_path, task_name: str, shot: int):
         import os

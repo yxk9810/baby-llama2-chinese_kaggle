@@ -159,4 +159,4 @@ def mmlu_eval_func(data_path, opt, model, tokenizer):
     weighted_acc = np.mean(np.concatenate(all_cors))
     print("Average accuracy: {:.3f}".format(weighted_acc))
 
-    return weighted_acc
+    return cat_cors, weighted_acc

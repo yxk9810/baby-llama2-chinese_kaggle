@@ -25,7 +25,6 @@ class PretrainDataset(Dataset):
             data = data[:max_length*int(len(data)/max_length)]
             np.random.shuffle(data)
             self.data = data.reshape(-1,max_length)
-        #
 
         # self.data = self.data[0: min(len(self.data),4000)]
         print("memmap:{} train data.shape:{}".format(memmap,self.data.shape))

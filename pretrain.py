@@ -117,7 +117,7 @@ if __name__=="__main__":
     # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
     # -----------------------------------------------------------------------------
 
-    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain_bs{opt.batch_size}_accum{opt.gradient_accumulation_steps}')
+    save_dir =os.path.join(opt.out_dir , f'{opt.save_path}_pretrain_bs{opt.batch_size}_accum{opt.gradient_accumulation_steps}_h{opt.n_heads}_hkv{opt.n_kv_heads}')
     if not os.path.exists(save_dir): os.makedirs(save_dir)
 
     # 保存一份参数
@@ -126,8 +126,8 @@ if __name__=="__main__":
         file.write(yaml.dump(config))
 
     log_dir = os.path.join(save_dir,'log.log')
-    if os.path.exists(log_dir):
-        os.remove(log_dir) 
+    # if os.path.exists(log_dir):
+    #     os.remove(log_dir) 
     logger = get_logger(log_dir)
     # various inits, derived attributes, I/O setup
    # various inits, derived attributes, I/O setup

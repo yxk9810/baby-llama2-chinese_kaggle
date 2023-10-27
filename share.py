@@ -60,7 +60,7 @@ def init_model(opt):
         multiple_of=opt.multiple_of,
         max_seq_len=opt.max_seq_len,
         dropout=opt.dropout,
-        flash_attention = True,
+        flash_attention = False,
         model_type = 'Model',
     )  # start with model_args from command line
 
