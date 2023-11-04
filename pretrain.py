@@ -5,9 +5,10 @@ import torch
 from torch.distributed import destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from dataset_pretrain import PretrainDataset
-from share import get_lr,get_logger,init_model,init_ddp
+from src.dataset_pretrain import PretrainDataset
+from src.share import get_lr,get_logger,init_model,init_ddp
 from numpy import *
+from src.utils import *
 
 #To run with DDP on 4 gpus on 1 node, example:
 # torchrun --standalone --nproc_per_node=4 pretrain.py OR python -m torch.distributed.launch --nproc_per_node=4 pretrain.py
@@ -131,7 +132,7 @@ if __name__=="__main__":
     #     os.remove(log_dir) 
     logger = get_logger(log_dir)
     # various inits, derived attributes, I/O setup
-   # various inits, derived attributes, I/O setup
+    # various inits, derived attributes, I/O setup
     ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
 
     master_process,ddp_local_rank,ctx=init_ddp(ddp, opt)

@@ -55,7 +55,7 @@ train_params:
   min_lr: 0.00001
   backend: 'nccl'
   device: 'cuda'
-  compile: False
+  compile: True
 
 eval_params:
   max_new_tokens: 100

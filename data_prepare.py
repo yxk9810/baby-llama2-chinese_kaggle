@@ -1,11 +1,9 @@
 import json
 import glob
 import numpy as np
-from tqdm import tqdm
 from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
-import pandas as pd
 import os
-from src.utils import *
+from src.data_process import *
 
 BATCH_SIZE = 500000000
 tokenizer = ChatGLMTokenizer(vocab_file='./chatglm_tokenizer/tokenizer.model')
@@ -21,9 +19,9 @@ def collect_pretrain_data(data_path, pretrain_data_list=None):
 
     print('concat pretrain_data.')
     data_lst = []
-    for data_path in pretrain_data_list:
-        print(f'read data: {data_path}')
-        with open(data_path, 'rb') as f:
+    for data_file in pretrain_data_list:
+        print(f'read data: {data_file}')
+        with open(data_file, 'rb') as f:
             data = np.fromfile(f, dtype=np.uint16)
             data_lst.append(data)
 

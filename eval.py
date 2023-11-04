@@ -69,7 +69,7 @@ def eval_medical(model,tokenizer,opt,ctx,logger):
 
 def eval_ceval(model, tokenizer, opt, logger):
     print(f'*************CEval*************')
-    from eval.ceval import CEval
+    from src.eval.ceval import CEval
     ceval = CEval(model, tokenizer, opt)
     accs, average_acc=ceval.run('data/ceval-exam',opt.shot)
     for key in accs:
@@ -79,7 +79,7 @@ def eval_ceval(model, tokenizer, opt, logger):
 
 def eval_mmlu(model, tokenizer, opt, logger):
     print(f'*************MMLU*************')
-    from eval.mmlu import mmlu_eval_func
+    from src.eval.mmlu import mmlu_eval_func
     cat_cors, weighted_acc=mmlu_eval_func('data/mmlu', opt, model, tokenizer)
     for cat in cat_cors:
         cat_acc = np.mean(np.concatenate(cat_cors[cat]))
@@ -89,7 +89,7 @@ def eval_mmlu(model, tokenizer, opt, logger):
 
 def eval_longbench(model, tokenizer, opt, logger):
     print(f'*************LongBench*************')
-    from eval.longbench import longbench_eval_func
+    from src.eval.longbench import longbench_eval_func
     scores, weighted_acc=longbench_eval_func('data/longBench', opt, model, tokenizer)
     for key in scores:
         logger.info(f'model: {opt.save_path}. [LongBench] [{key}] scores: {scores[key]}')
@@ -175,7 +175,7 @@ if __name__=="__main__":
     #dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float16' # 'float32' or 'bfloat16' or 'float16'
     #exec(open('configurator.py').read()) # overrides from command line or config file
     # -----------------------------------------------------------------------------
-    from share import get_logger
+    from src.share import get_logger
     log_dir = os.path.join(opt.out_dir,'eval_all.log')
     if os.path.exists(log_dir):
         os.remove(log_dir) 
