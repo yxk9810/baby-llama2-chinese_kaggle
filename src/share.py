@@ -2,8 +2,8 @@ import os
 import math
 from contextlib import nullcontext
 import torch
-from models.utils import ModelArgs
-from models.model_loader import _get_model_architecture
+from src.models.utils import ModelArgs
+from src.models.model_loader import _get_model_architecture
 from torch.distributed import init_process_group
 import logging
 

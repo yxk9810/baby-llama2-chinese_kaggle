@@ -25,6 +25,16 @@ python data_process.py
 ```
 数据预处理采取GPT的通用做法，对语料进行提前分词，对一个样本做完分词后在末尾加上一个结束符号，与下一个样本区分开。然后将所有的训练语料拼接成一个数组（np.uint16）以.bin二进制格式存储到磁盘上。如果语料过大，避免内存溢出，可以选择mmap格式。
 
+## 训练自己的分词器
+如果要重新训练自己的分词器，可以在data_process.py代码中设置save_all_text为True，会将文本信息汇总保存到本地txt，然后可以训练自己的分词器。
+```python
+#获取data文件夹下的全部tokenizer_xxx.txt文件。
+python train_tokenizer.py
+#运行结束后，会在当前目录下产生tokenizer.model文件
+```
+
+代码来自：https://github.com/yanqiangmiffy/how-to-train-tokenizer
+
 ## SFT样本构建
 中文SFT语料最近陆陆续续开源了很多（[bell](https://huggingface.co/datasets/BelleGroup/train_1M_CN)、[MOSS](https://github.com/OpenLMLab/MOSS/tree/main/SFT_data)、[alpaca-zh](https://huggingface.co/datasets/shibing624/alpaca-zh)等），但是坦白讲，质量都不高，大家可自行下载并需要进行清洗，清洗SFT数据是个耗时耗力的工作。
 中文SFT语料网上最近很多，大家自行下载。参考dataset_sft.py即可！

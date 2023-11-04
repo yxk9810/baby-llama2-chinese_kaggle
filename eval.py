@@ -6,8 +6,8 @@ import json
 from contextlib import nullcontext
 import torch
 import pandas as pd
-from models.model import Transformer
-from models.utils import ModelArgs
+from src.models.model import Transformer
+from src.models.utils import ModelArgs
 from chatglm_tokenizer.tokenization_chatglm import ChatGLMTokenizer
 import numpy as np
 from setting import parser_args,parser_config

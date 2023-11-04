@@ -7,11 +7,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from models.utils import ModelArgs
-from models.layers.position_code import precompute_freqs_cis
-from models.layers.layernorm import RMSNorm
-from models.layers.attention import Attention
-from models.layers.ffn import FeedForward
+from src.models.utils import ModelArgs
+from src.models.layers.position_code import precompute_freqs_cis
+from src.models.layers.layernorm import RMSNorm
+from src.models.layers.attention import Attention
+from src.models.layers.ffn import FeedForward
 
 
 class TransformerBlock(nn.Module):

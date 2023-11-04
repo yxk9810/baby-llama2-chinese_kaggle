@@ -3,8 +3,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from models.utils import ModelArgs
-from models.layers.position_code import apply_rotary_emb
+from src.models.utils import ModelArgs
+from src.models.layers.position_code import apply_rotary_emb
 
 
 def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:

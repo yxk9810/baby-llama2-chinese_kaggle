@@ -2,7 +2,7 @@ from torch import nn
 from typing import Type
 import torch.nn as nn
 
-from models.model import Transformer
+from src.models.model import Transformer
 
 _MODEL_REGISTRY = {
     "Model": Transformer,
