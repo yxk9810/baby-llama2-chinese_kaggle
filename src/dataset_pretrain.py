@@ -28,7 +28,7 @@ class PretrainDataset(Dataset):
 
         # self.data = self.data[0: min(len(self.data),4000)]
         print("memmap:{} train data.shape:{}".format(memmap,self.data.shape))
-        print("pretrain token nums:%.4fB"%(self.data.shape[0]*self.data.shape[1]/1024/1024/1024))
+        print("pretrain token nums:%.4fB "%(self.data.shape[0]*self.data.shape[1]/1024/1024/1024))
         print("downloading finished.....")
         
     def __len__(self):

@@ -717,15 +717,17 @@ def process_test_medical(tokenizer, save_all_text=False):
         with open(data_name, 'r', encoding='utf-8') as f:
             for row in tqdm(f):
                 line = json.loads(row)
-                q = line['text']
+                q = line['instruction'] + line['input']
+                a = line['output']
                 if tokenizer is not None:
                     q_id = tokenizer.encode(q, add_special_tokens=False)
-                    text_id = q_id + [tokenizer.special_tokens['<eos>']]
+                    a_id = tokenizer.encode(a, add_special_tokens=False)
+                    text_id = q_id + a_id + [tokenizer.special_tokens['<eos>']]
                     if len(text_id) > GLOBAL_MIN_LEN:
                         doc_ids += text_id
                         total_id_len += len(text_id)
                 if save_all_text:
-                    corpus_txts.write(q +'\n')
+                    corpus_txts.write(q + a +'\n')
 
     if len(doc_ids) > 0:
         arr = np.array(doc_ids, dtype=np.uint16)

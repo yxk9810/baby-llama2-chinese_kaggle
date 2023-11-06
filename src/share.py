@@ -59,11 +59,11 @@ def init_model(opt):
         vocab_size=opt.vocab_size,#64793,
         multiple_of=opt.multiple_of,
         max_seq_len=opt.max_seq_len,
+        use_bias=opt.use_bias,
         dropout=opt.dropout,
         flash_attention = False,
         model_type = 'Model',
     )  # start with model_args from command line
-
 
     if opt.init_from == "scratch":
         # init a new model from scratch
@@ -145,3 +145,46 @@ def init_ddp(ddp, opt):
     )
 
     return master_process, ddp_local_rank, ctx
+
+
+def get_ds_model(model_config, args, activation_checkpointing_config=None):
+    import deepspeed
+    class GPT2ModelPipe(PipelineModule):
+        def __init__(self, model_config, **kwargs):
+            if activation_checkpointing_config:
+                deepspeed.checkpointing.configure(
+                    None,
+                    partition_activations=activation_checkpointing_config.get("partition_activations", False),
+                    contiguous_checkpointing=activation_checkpointing_config.get("contiguous_memory_optimization", False),
+                    checkpoint_in_cpu=activation_checkpointing_config.get("cpu_checkpointing", False),
+                    num_checkpoints=activation_checkpointing_config.get("number_checkpoints", None),
+                    synchronize=activation_checkpointing_config.get("synchronize_checkpoint_boundary", False),
+                    profile=activation_checkpointing_config.get("profile", False),
+                )
+            super().__init__(
+                layers=[
+                    LayerSpec(EmbeddingPipe, model_config.vocab_size + 1, model_config.hidden_size),
+                    *[LayerSpec(ParallelTransformerLayerPipe, model_config, activation_checkpointing_config is not None)
+                        for _ in range(model_config.num_hidden_layers)],
+                    LayerSpec(LayerNormPipe, model_config.hidden_size, model_config.rms_norm_eps),
+                    LayerSpec(LMLayerPipe, model_config.hidden_size, model_config.vocab_size + 1, bias=False),
+                ],
+                **kwargs
+            )
+
+    pp = args.pipe_parallel_size
+    mp = args.model_parallel_size
+    assert args.world_size % (pp * mp) == 0
+    dp = args.world_size // (pp * mp)
+
+    from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
+    topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
+    # Offset base seeds for the interior pipeline stages.
+    stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
+    if 0 < stage_id < topo.get_dim('pipe') - 1:
+        args.seed = args.seed + (stage_id * mp)
+
+    return GPT2ModelPipe(model_config,
+                         loss_fn=loss_fn,
+                         topology=topo,
+                         base_seed=args.seed,)

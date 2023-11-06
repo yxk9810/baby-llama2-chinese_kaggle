@@ -25,6 +25,7 @@ class TransformerBlock(nn.Module):
             dim=args.dim,
             hidden_dim=4 * args.dim,
             multiple_of=args.multiple_of,
+            use_bias=args.use_bias,
             dropout=args.dropout,
         )
         self.layer_id = layer_id
@@ -55,7 +56,7 @@ class Transformer(nn.Module):
         for layer_id in range(params.n_layers):
             self.layers.append(TransformerBlock(layer_id, params))
         self.norm = RMSNorm(params.dim, eps=params.norm_eps)
-        self.output = nn.Linear(params.dim, vocab_size, bias=False)
+        self.output = nn.Linear(params.dim, vocab_size, bias=params.use_bias)
 
         # share the unembedding parameters with the embedding parameters
         self.tok_embeddings.weight = self.output.weight # https://paperswithcode.com/method/weight-tying

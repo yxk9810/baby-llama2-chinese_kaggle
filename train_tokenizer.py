@@ -28,14 +28,14 @@ def train_tokenizer(merged_txt_path,tokenizer_name):
       input_format: #
       model_prefix: open_llama # 模型输出路径
       model_type: BPE # 模型类型 bpe、char、word、unigram(gram)
-      vocab_size: 50000 # 词汇表大小，数量越大训练越慢，太小（<4000）可能训练不了
+      vocab_size: 50000 # 词汇表大小，数量越大训练越慢，太小(<4000)可能训练不了
       self_test_sample_size: 0
       character_coverage: 0.9995 # 模型中覆盖的字符数
       input_sentence_size: 0
       shuffle_input_sentence: 0
       seed_sentencepiece_size: 1000000 # 
       shrinking_factor: 0.75
-      max_sentence_length: 16384 # 最大句子长度，默认是4192，长度按照字节计算，一个中文代表长度为2
+      max_sentence_length: 16384 # 最大句子长度,默认是4192,长度按照字节计算,一个中文代表长度为2
       num_threads: 16 # 进程个数
       num_sub_iterations: 2
       max_sentencepiece_length: 16
@@ -73,6 +73,8 @@ def train_tokenizer(merged_txt_path,tokenizer_name):
       normalization_rule_tsv: 
     }
     """
+    print(f'[tokenizer] train...')
+
     start_time = time.time()
     spm.SentencePieceTrainer.train(
         input=merged_txt_path,  # 输入文件
@@ -174,6 +176,7 @@ def merge_tokenizers(llama_tokenizer, chinese_sp_model):
 def eval_tokenizer(tokenizer,txt_file_path,res_csv_path):
     # tokenizer = LlamaTokenizer.from_pretrained('merged_tokenizer_hf_60k')
     # llama_tokenizer = LlamaTokenizer.from_pretrained('llama')
+    print(f'[tokenizer] eval...')
 
     print(tokenizer)
 
@@ -206,11 +209,11 @@ if __name__=="__main__":
     data_path = './data'
     merge_txt_list = []
     for file in os.listdir(data_path):
-        if file.endswith('txt') and 'tokenizer' in file:
+        if file.endswith('txt') and 'tokenizer_' in file:
             merge_txt_list.append(os.path.join(data_path, file))
 
-    merged_txt_path = os.path.join(data_path,'tokenizer_merged.txt')
-    collect_data(merge_txt_list,merged_txt_path)
+    merged_txt_path = os.path.join(data_path,'merged_tokenizer.txt')
+    # collect_data(merge_txt_list,merged_txt_path)
 
     tokenizer_name = 'baby'
     train_tokenizer(merged_txt_path, tokenizer_name)
@@ -218,6 +221,6 @@ if __name__=="__main__":
     import sentencepiece as spm
     sp_model = spm.SentencePieceProcessor()
     sp_model.load(f'{tokenizer_name}.model')
-    txt_file_path = './data/token_CLUECorpusSmall_wiki_zh.txt'
+    txt_file_path = './data/tokenizer_test_medical.txt'
     res_csv_path = './data/eval_tokenizer.csv'
     eval_tokenizer(sp_model, txt_file_path,res_csv_path)

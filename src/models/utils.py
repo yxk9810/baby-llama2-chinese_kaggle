@@ -12,6 +12,7 @@ class ModelArgs:
     multiple_of: int = 256  # make SwiGLU hidden layer size multiple of large power of 2
     norm_eps: float = 1e-5
     max_seq_len: int = 2048
+    use_bias: bool=False
     dropout: float = 0.0
     flash_attention : bool =False
     model_type : str = 'Model'

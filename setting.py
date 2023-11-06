@@ -18,7 +18,7 @@ def parser_args():
     parser.add_argument("--n_layers", type=int, default=8)
     parser.add_argument("--n_heads", type=int, default=8)
     parser.add_argument("--n_kv_heads", type=int, default=0, help="0及其以下,则取n_heads的值,为MHQ.为1则是MQA,大于1且小于n_layers则为GQA")
-    parser.add_argument("--bias", type=bool, default=False)
+    parser.add_argument("--use_bias", type=bool, default=False)
     parser.add_argument("--dtype", type=str, default='float16', help="path to config")
     parser.add_argument("--vocab_size", type=int, default=64793)
     parser.add_argument("--vocab_file", type=str, default='./chatglm_tokenizer/tokenizer.model', help="path to config")
@@ -80,7 +80,7 @@ def parser_config(opt):
     opt.n_layers = config['model_params']['n_layers']
     opt.n_heads = config['model_params']['n_heads']
     opt.n_kv_heads = config['model_params']['n_kv_heads']
-    opt.bias = config['model_params']['bias']
+    opt.use_bias = config['model_params']['use_bias']
     opt.dtype = config['model_params']['dtype']
     opt.vocab_size = config['model_params']['vocab_size']
     opt.vocab_file = config['model_params']['vocab_file']

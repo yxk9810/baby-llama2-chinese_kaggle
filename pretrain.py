@@ -12,7 +12,7 @@ from src.utils import *
 
 #To run with DDP on 4 gpus on 1 node, example:
 # torchrun --standalone --nproc_per_node=4 pretrain.py OR python -m torch.distributed.launch --nproc_per_node=4 pretrain.py
-def pretrain_epoch(epoch, opt):
+def pretrain_epoch(epoch, model, raw_model, train_loader, scaler, optimizer, opt, ctx):
     start_time=time.time()
     iter_per_epoch=len(train_loader)
 
@@ -66,10 +66,6 @@ def pretrain_epoch(epoch, opt):
 
         #打印日志
         if step % opt.log_interval == 0:
-            if opt.use_tensorboard:
-                from share import tensorboard_logger
-                tensorboard_logger(loss,epoch)
-               
             spend_time=time.time()-start_time
             logger.info(
                     'Epoch:[{}/{}] ({}/{}) loss:{:.3f} lr:{:.7f}  epoch_time: {} min.'.format(
@@ -83,7 +79,7 @@ def pretrain_epoch(epoch, opt):
         
 
 @torch.no_grad()
-def valid_epoch(opt):
+def valid_epoch(model, val_loader, raw_model, opt, ctx):
     losses = []
     model.eval()
     for epoch in range(opt.max_epoch):
@@ -101,40 +97,8 @@ def valid_epoch(opt):
 
     return val_loss
 
-# I/O
-if __name__=="__main__":
-    
-    from setting import parser_args,parser_config
-    opt = parser_args()
-    opt,config = parser_config(opt)
 
-    # -----------------------------------------------------------------------------
-    config_keys = [
-        k
-        for k, v in globals().items()
-        if not k.startswith("_") and isinstance(v, (int, float, bool, str))
-    ]
-    # exec(open("configurator.py").read())  # overrides from command line or config file
-    # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
-    # -----------------------------------------------------------------------------
-
-    save_name=f'pretrain_layer{opt.n_layers}_seqlen{opt.max_seq_len}_dim{opt.dim}_bs{opt.batch_size}_accum{opt.grad_accum_steps}_h{opt.n_heads}_hkv{opt.n_kv_heads}'
-    save_dir =os.path.join(opt.out_dir , save_name)
-    if not os.path.exists(save_dir): os.makedirs(save_dir)
-
-    # 保存一份参数
-    with open(os.path.join(save_dir,'config.yaml'), "w") as file:
-        import yaml
-        file.write(yaml.dump(config))
-
-    log_dir = os.path.join(save_dir,'log.log')
-    # if os.path.exists(log_dir):
-    #     os.remove(log_dir) 
-    logger = get_logger(log_dir)
-    # various inits, derived attributes, I/O setup
-    # various inits, derived attributes, I/O setup
-    ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
-
+def pretrain_model(opt):
     master_process,ddp_local_rank,ctx=init_ddp(ddp, opt)
 
     if master_process:
@@ -214,8 +178,8 @@ if __name__=="__main__":
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
 
-        pretrain_epoch(epoch,opt)
-        val_loss=valid_epoch(opt)
+        pretrain_epoch(epoch, model, raw_model, train_loader, scaler, optimizer, opt, ctx)
+        val_loss=valid_epoch(model, val_loader, raw_model, opt, ctx)
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -233,3 +197,40 @@ if __name__=="__main__":
             torch.save(raw_model.state_dict(),'{}/epoch_{}.pth'.format(save_dir,epoch))
     if ddp:
         destroy_process_group()
+    
+# I/O
+if __name__=="__main__":
+    
+    from setting import parser_args,parser_config
+    opt = parser_args()
+    opt,config = parser_config(opt)
+
+    # -----------------------------------------------------------------------------
+    config_keys = [
+        k
+        for k, v in globals().items()
+        if not k.startswith("_") and isinstance(v, (int, float, bool, str))
+    ]
+    # exec(open("configurator.py").read())  # overrides from command line or config file
+    # config = {k: globals()[k] for k in config_keys}  # will be useful for logging
+    # -----------------------------------------------------------------------------
+
+    save_name=f'pretrain_layer{opt.n_layers}_seqlen{opt.max_seq_len}_dim{opt.dim}_bs{opt.batch_size}_accum{opt.grad_accum_steps}_h{opt.n_heads}_hkv{opt.n_kv_heads}'
+    save_dir =os.path.join(opt.out_dir , save_name)
+    # if not os.path.exists(save_dir): 
+        # os.makedirs(save_dir)
+
+    # 保存一份参数
+    with open(os.path.join(save_dir,'config.yaml'), "w") as file:
+        import yaml
+        file.write(yaml.dump(config))
+
+    log_dir = os.path.join(save_dir,'log.log')
+    # if os.path.exists(log_dir):
+    #     os.remove(log_dir) 
+    logger = get_logger(log_dir)
+    # various inits, derived attributes, I/O setup
+    # various inits, derived attributes, I/O setup
+    ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
+
+    pretrain_model(opt)

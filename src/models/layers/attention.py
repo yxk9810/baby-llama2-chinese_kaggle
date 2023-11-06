@@ -27,10 +27,10 @@ class Attention(nn.Module):
         self.n_local_kv_heads = self.n_kv_heads // model_parallel_size
         self.n_rep = self.n_local_heads // self.n_local_kv_heads
         self.head_dim = args.dim // args.n_heads
-        self.wq = nn.Linear(args.dim, args.n_heads * self.head_dim, bias=False)
-        self.wk = nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=False)
-        self.wv = nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=False)
-        self.wo = nn.Linear(args.n_heads * self.head_dim, args.dim, bias=False)
+        self.wq = nn.Linear(args.dim, args.n_heads * self.head_dim, bias=args.use_bias)
+        self.wk = nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=args.use_bias)
+        self.wv = nn.Linear(args.dim, self.n_kv_heads * self.head_dim, bias=args.use_bias)
+        self.wo = nn.Linear(args.n_heads * self.head_dim, args.dim, bias=args.use_bias)
         self.attn_dropout = nn.Dropout(args.dropout)
         self.resid_dropout = nn.Dropout(args.dropout)
         self.dropout = args.dropout
@@ -65,8 +65,8 @@ class Attention(nn.Module):
 
         # grouped multiquery attention: expand out keys and values
         # 有没有这里都没有任何区别
-        # xk = repeat_kv(xk, self.n_rep)  # (bs, seqlen, n_local_heads, head_dim)
-        # xv = repeat_kv(xv, self.n_rep)  # (bs, seqlen, n_local_heads, head_dim)
+        xk = repeat_kv(xk, self.n_rep)  # (bs, seqlen, n_local_heads, head_dim)
+        xv = repeat_kv(xv, self.n_rep)  # (bs, seqlen, n_local_heads, head_dim)
 
         if self.flash_attention:
             from flash_attn import flash_attn_func, flash_attn_qkvpacked_func
