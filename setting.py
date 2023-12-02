@@ -80,7 +80,7 @@ def parser_config(opt):
     opt.n_layers = config['model_params']['n_layers']
     opt.n_heads = config['model_params']['n_heads']
     opt.n_kv_heads = config['model_params']['n_kv_heads']
-    opt.use_bias = config['model_params']['use_bias']
+    opt.use_bias = config['model_params']['bias']
     opt.dtype = config['model_params']['dtype']
     opt.vocab_size = config['model_params']['vocab_size']
     opt.vocab_file = config['model_params']['vocab_file']
