@@ -92,7 +92,7 @@ def parser_config(opt):
     opt.eval_only = config['train_params']['eval_only']
     opt.always_save_checkpoint = config['train_params']['always_save_checkpoint']
     opt.init_from = config['train_params']['init_from']
-    opt.grad_accum_steps = config['train_params']['grad_accum_steps']
+    opt.grad_accum_steps = config['train_params']['gradient_accumulation_steps']
     opt.batch_size = config['train_params']['batch_size']
     opt.multiple_of = config['train_params']['multiple_of']
     opt.dropout = config['train_params']['dropout']
